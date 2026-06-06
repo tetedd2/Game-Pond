@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
     <title>ผลดีฟาร์ม 3D (Phondee Farm 3D)</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -12,9 +12,12 @@
             margin: 0; padding: 0; overflow: hidden;
             width: 100vw; height: 100vh;
             user-select: none; -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            overscroll-behavior: none;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Kanit';
             background-color: #0b0f19; touch-action: none;
         }
+        .overflow-y-auto { touch-action: pan-y !important; overscroll-behavior: contain; }
         #canvas-target { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
         .no-pointer { pointer-events: none; }
         .pointer { pointer-events: auto; }
@@ -207,6 +210,30 @@
     </div>
 
     <script>
+        /**
+         * NATIVE MOBILE WEB-APP BEHAVIOR ENFORCEMENT
+         */
+        (function setupMobileEnvironment() {
+            // Prevent double-tap to zoom
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', (e) => {
+                const now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) {
+                    e.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, { passive: false });
+
+            // Prevent pinch-to-zoom and rubber-banding, but allow scrollable div interactions
+            document.addEventListener('touchmove', (e) => {
+                if (e.target.closest('.overflow-y-auto') || e.target.closest('input')) return;
+                e.preventDefault();
+            }, { passive: false });
+
+            // Disable context menu on long-presses (for iOS & Android)
+            document.addEventListener('contextmenu', e => e.preventDefault());
+        })();
+
         /**
          * Phondee Farm 3D Game Core Architecture Engine
          */
