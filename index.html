@@ -38,7 +38,7 @@
 
     <div id="canvas-target"></div>
     
-    <div id="joystick-zone"><div id="joystick-knob"></div></div>
+    <div id="joystick-zone" class="pointer"><div id="joystick-knob"></div></div>
 
     <div id="ui-global-wrapper" class="absolute inset-0 z-10 no-pointer flex flex-col justify-between p-4 text-white">
         
@@ -120,19 +120,20 @@
             <div class="w-64 h-12 no-pointer invisible hidden md:block"></div>
         </div>
 
-        <div class="w-full flex flex-col items-center gap-2.5 no-pointer ready-hud hidden">
+        <div class="w-full flex flex-col items-center gap-2.5 no-pointer ready-hud hidden mb-2">
             <div id="hud-hotbar-label" class="text-xs font-bold text-amber-400 bg-slate-950/90 border border-slate-800 px-3 py-1 rounded-lg shadow-sm">
                 มือเปล่า
             </div>
             
-            <div class="flex items-center gap-2 pointer bg-slate-950/90 border-2 border-slate-800 p-2 rounded-2xl shadow-2xl" id="hud-hotbar">
+            <div class="flex items-center gap-3 pointer bg-slate-950/90 border-2 border-slate-800 p-2.5 rounded-2xl shadow-2xl" id="hud-hotbar">
                 </div>
             
             <div class="text-[10px] text-slate-400 bg-slate-950/60 backdrop-blur-sm px-4 py-1 rounded-full border border-slate-900 hidden sm:flex gap-4">
                 <div><b class="text-slate-200">W,A,S,D</b> เคลื่อนที่</div>
-                <div><b class="text-slate-200">SHIFT</b> วิ่งไว</div>
+                <div><b class="text-slate-200">คลิกขวาลาก / ปัดนิ้ว</b> หมุนมุมกล้อง</div>
+                <div><b class="text-slate-200">Scroll / หนีบนิ้ว</b> ซูมเข้า-ออก</div>
                 <div><b class="text-slate-200">คลิกซ้าย</b> โต้ตอบแปลงดิน</div>
-                <div><b class="text-slate-200">กดปุ่ม I</b> เปิดร้านค้า/กระเป๋า</div>
+                <div><b class="text-slate-200">กดปุ่ม I / แตะช่องสล็อต</b> เปิดร้านค้า/กระเป๋า</div>
             </div>
         </div>
     </div>
@@ -199,7 +200,7 @@
                 <div>กดปุ่ม <kbd class="bg-slate-800 text-slate-200 px-1.5 py-0.5 rounded border border-slate-700">I</kbd> อีกครั้งเพื่อออกจากหน้านี้</div>
                 <div class="flex items-center gap-2">
                     <span>กระเป๋าเงินของคุณ:</span>
-                    <span id="modal-coin-label" class="text-sm font-black text-amber-400">150 🪙</span>
+                    <span id="modal-coin-label" class="text-sm font-black text-amber-400">200 🪙</span>
                 </div>
             </div>
         </div>
@@ -234,13 +235,11 @@
         const GameSound = {
             ctx: null,
             init() {
-                // Initialize clean instance layout map tracking arrays 
                 this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             },
             play(type) {
                 if(!this.ctx) return;
                 try {
-                    // Quick safety trigger path ensuring context resumes if suspended by browsing rules
                     if(this.ctx.state === 'suspended') this.ctx.resume();
                     
                     const osc = this.ctx.createOscillator();
@@ -263,13 +262,13 @@
                         gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
                         osc.start(now); osc.stop(now + 0.1);
                     } else if(type === 'harvest') {
-                        osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, now); // C5 node target
-                        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5 node target
+                        osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, now);
+                        osc.frequency.setValueAtTime(659.25, now + 0.08);
                         gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
                         osc.start(now); osc.stop(now + 0.2);
                     } else if(type === 'coin') {
-                        osc.type = 'sine'; osc.frequency.setValueAtTime(987.77, now); // B5 note
-                        osc.frequency.setValueAtTime(1318.51, now + 0.06); // E6 note
+                        osc.type = 'sine'; osc.frequency.setValueAtTime(987.77, now);
+                        osc.frequency.setValueAtTime(1318.51, now + 0.06);
                         gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
                         osc.start(now); osc.stop(now + 0.25);
                     }
@@ -283,10 +282,11 @@
                 player: {
                     name: "สมชาย ใจดี", gender: "boy", level: 1, xp: 0, coins: 200, shopLevel: 1,
                     inventory: {
-                        'tool_dig': 1, 'tool_water': 1, 'medicine_generic': 2,
-                        'seed_rambutan': 3, 'seed_mangosteen': 2, 'seed_durian': 1,
+                        'tool_dig': 1, 'tool_water': 1, 'medicine_generic': 1,
+                        'seed_rambutan': 3, 'seed_mangosteen': 0, 'seed_durian': 0,
                         'crop_rambutan': 0, 'crop_mangosteen': 0, 'crop_durian': 0
                     },
+                    hotbar: [], // Dynamically mapped array populated via updateHotbarMapping()
                     activeHotbarIdx: 0
                 },
                 plots: [], quests: [],
@@ -297,7 +297,7 @@
 
         // --- ENGINE STORAGE REPOSITORY MANAGER DATA LAYER ---
         Game.Data = {
-            saveKey: "PHONDEE_FARM_3D_SAVE_2026",
+            saveKey: "PHONDEE_FARM_3D_SAVE_V2", // Version bumped to force fresh load matching the starting resources fix
             save() {
                 localStorage.setItem(this.saveKey, JSON.stringify(Game.State.player));
             },
@@ -366,15 +366,27 @@
                     this.renderer.setSize(window.innerWidth, window.innerHeight);
                 });
 
-                // Attach direct click raycaster processing loops targets boundaries validation
+                // Raycast trigger - checks primary mouse clicks
                 window.addEventListener('pointerdown', (e) => {
-                    if(Game.UI.modalOpen || e.target.tagName === 'BUTTON' || e.target.closest('.pointer')) return;
-                    this.executeTargetRaycastEvaluation();
+                    if (Game.UI.modalOpen || e.target.tagName === 'BUTTON' || e.target.closest('.pointer')) return;
+                    
+                    // Store initial coordinates to prevent raycasting on drag movements
+                    this.dragStartScreenX = e.clientX;
+                    this.dragStartScreenY = e.clientY;
+                });
+
+                window.addEventListener('pointerup', (e) => {
+                    if (Game.UI.modalOpen || e.target.tagName === 'BUTTON' || e.target.closest('.pointer')) return;
+                    
+                    // Only process active click interactions if pointer didn't shift significantly
+                    const movementDist = Math.hypot(e.clientX - (this.dragStartScreenX || 0), e.clientY - (this.dragStartScreenY || 0));
+                    if (movementDist < 6) {
+                        this.executeTargetRaycastEvaluation(e);
+                    }
                 });
             },
 
             generateLandscapeBaseGrid() {
-                // Generate primary standard floor terrain mesh geometry blocks
                 const terrainGeo = new THREE.PlaneGeometry(200, 200, 24, 24);
                 terrainGeo.rotateX(-Math.PI / 2);
                 
@@ -383,7 +395,6 @@
                     let x = pos.getX(i);
                     let z = pos.getZ(i);
                     if(Math.abs(x) > 18 || Math.abs(z) > 18) {
-                        // Deform outer terrain perimeter points to shape backdrop hills vectors
                         pos.setY(i, Math.sin(x * 0.08) * Math.cos(z * 0.08) * 3.5 - 0.5);
                     }
                 }
@@ -394,7 +405,6 @@
                 baseTerrain.receiveShadow = true;
                 this.scene.add(baseTerrain);
 
-                // Form background scenario props items arrays
                 for(let i=0; i<40; i++) {
                     const tree = Game.Entities.createSceneryTreeMesh();
                     let rx = (Math.random() - 0.5) * 160;
@@ -404,7 +414,6 @@
                     this.scene.add(tree);
                 }
 
-                // Inject central decorative pond structure representation
                 const pondGeo = new THREE.CylinderGeometry(4, 4, 0.2, 8);
                 const pondMat = new THREE.MeshStandardMaterial({color: 0x0077b6, roughness: 0.2, metalness: 0.8});
                 const pond = new THREE.Mesh(pondGeo, pondMat);
@@ -412,8 +421,15 @@
                 this.scene.add(pond);
             },
 
-            executeTargetRaycastEvaluation() {
-                this.raycaster.setFromCamera(this.pointerCenter, this.camera);
+            executeTargetRaycastEvaluation(e) {
+                // Calculate normalized device coordinates from pointer locations
+                const rect = this.renderer.domElement.getBoundingClientRect();
+                const mouseNDC = new THREE.Vector2(
+                    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+                    -((e.clientY - rect.top) / rect.height) * 2 + 1
+                );
+
+                this.raycaster.setFromCamera(mouseNDC, this.camera);
                 const intersections = this.raycaster.intersectObjects(this.interactiveMeshes);
 
                 if(intersections.length > 0) {
@@ -448,21 +464,17 @@
 
             createPlayerModelAvatarMesh(gender = 'boy') {
                 const grp = new THREE.Group();
-                // Character base legs
                 const legMat = new THREE.MeshStandardMaterial({color: 0x212529, flatShading:true});
                 const l1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.2), legMat); l1.position.set(-0.25, 0.3, 0); l1.castShadow = true; grp.add(l1);
                 const l2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.2), legMat); l2.position.set(0.25, 0.3, 0); l2.castShadow = true; grp.add(l2);
                 
-                // Torso chest block element
                 const bodyColor = gender === 'boy' ? 0x023e8a : 0xd90429;
                 const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.4), new THREE.MeshStandardMaterial({color: bodyColor, flatShading:true}));
                 torso.position.y = 1.0; torso.castShadow = true; grp.add(torso);
                 
-                // Character head sphere representation
                 const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({color: 0xffdbac, flatShading:true}));
                 head.position.y = 1.65; head.castShadow = true; grp.add(head);
 
-                // Add traditional stylized structural sun straw hat primitive geometry
                 const hat = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.3, 6), new THREE.MeshStandardMaterial({color: 0xddb892, flatShading:true}));
                 hat.position.y = 1.95; hat.castShadow = true; grp.add(hat);
 
@@ -484,53 +496,46 @@
                 const grp = new THREE.Group();
                 const spec = FRUIT_SPECS[type] || FRUIT_SPECS.rambutan;
                 
-                // Determine core plant base leaf material coloring based on disease infection status maps
-                const plantLeafHueColor = hasDisease ? 0x9a7b56 : 0x2d6a4f; // Sick brown vs healthy vibrant forest green
+                const plantLeafHueColor = hasDisease ? 0x9a7b56 : 0x2d6a4f;
                 const foliageMat = new THREE.MeshStandardMaterial({ color: plantLeafHueColor, flatShading: true, roughness: 0.9 });
                 
                 if(stage === 1) {
-                    // STAGE 1: SEED MOUND LAYER
                     const pile = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.12, 4), new THREE.MeshStandardMaterial({color: 0x4a3728, flatShading:true}));
                     grp.add(pile);
                 } 
                 else if (stage === 2) {
-                    // STAGE 2: EMERGING REGENERATIVE SPROUT NODE
                     const sprout = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.25, 4), new THREE.MeshStandardMaterial({color: 0x74c69d, flatShading:true}));
                     sprout.position.y = 0.12; sprout.rotation.z = 0.15;
                     grp.add(sprout);
                 } 
                 else if (stage === 3) {
-                    // STAGE 3: YOUNG MATURING TREE BASE STEM
                     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.6, 4), new THREE.MeshStandardMaterial({color: 0x6f4e37, flatShading:true}));
                     stem.position.y = 0.3; grp.add(stem);
                     const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.25, 0), foliageMat);
                     bush.position.y = 0.6; grp.add(bush);
                 } 
                 else if (stage === 4) {
-                    // STAGE 4: ADVANCED STRUCTURAL GROWING TREE
                     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.2, 5), new THREE.MeshStandardMaterial({color: 0x6f4e37, flatShading:true}));
                     trunk.position.y = 0.6; grp.add(trunk);
                     const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 1), foliageMat);
                     crown.position.y = 1.3; crown.castShadow = true; grp.add(crown);
                 } 
                 else {
-                    // STAGE 5: FRUIT-BEARING HARVEST MATURE ADULT STRUCTURE
                     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 1.4, 5), new THREE.MeshStandardMaterial({color: 0x6f4e37, flatShading:true}));
                     trunk.position.y = 0.7; grp.add(trunk);
                     const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.65, 1), foliageMat);
                     crown.position.y = 1.6; crown.castShadow = true; grp.add(crown);
 
-                    // Add custom shape configurations parsing match conditions to build high-fidelity Thai low poly fruits representation
                     const fruitMat = new THREE.MeshStandardMaterial({ color: spec.color, flatShading: true, roughness: 0.6 });
                     
-                    if(spec.modelStyle === 'bush') { // Rambutan clusters layout maps configuration
+                    if(spec.modelStyle === 'bush') {
                         for(let i=0; i<4; i++) {
                             const item = new THREE.Mesh(new THREE.SphereGeometry(0.12, 5, 5), fruitMat);
                             item.position.set(Math.sin(i*1.5)*0.5, 1.4 + (i*0.1), Math.cos(i*1.5)*0.5);
                             item.castShadow = true; grp.add(item);
                         }
                     } 
-                    else if(spec.modelStyle === 'spikyTree') { // Thorny spike patterns for Durian assembly
+                    else if(spec.modelStyle === 'spikyTree') {
                         for(let i=0; i<2; i++) {
                             const dNode = new THREE.Group();
                             const core = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), fruitMat);
@@ -539,7 +544,7 @@
                             grp.add(dNode);
                         }
                     } 
-                    else { // Smooth purple globes structural calyx for Mangosteen mapping
+                    else {
                         for(let i=0; i<3; i++) {
                             const mNode = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 6), fruitMat);
                             mNode.position.set(Math.sin(i*2.0)*0.48, 1.3, Math.cos(i*2.0)*0.48);
@@ -548,7 +553,6 @@
                     }
                 }
 
-                // Add an animated floating disease warning billboard icon if active infection flags true
                 if(hasDisease) {
                     const alertGeo = new THREE.BoxGeometry(0.2, 0.5, 0.2);
                     const alertMat = new THREE.MeshBasicMaterial({color: 0xe63946});
@@ -568,16 +572,103 @@
         Game.Input = {
             keys: {}, moveVector: new THREE.Vector2(0,0),
             joystickActive: false, joyStartPos: new THREE.Vector2(0,0),
+            
+            // Camera Orbit drag properties
+            isDraggingCam: false,
+            lastMouseX: 0, lastMouseY: 0,
+            touchStartDist: 0, // Pinch zoom tracking
 
             init() {
-                // Desktop Input Key Bindings
+                // Desktop keyboard input controls
                 window.addEventListener('keydown', (e) => {
                     const k = e.key.toLowerCase(); this.keys[k] = true;
                     if(k === 'i') Game.UI.toggleModalView();
+                    
+                    // Direct keyboard numerical select mappings
+                    const num = parseInt(k);
+                    if (num >= 1 && num <= 6) {
+                        GameSound.play('click');
+                        Game.State.player.activeHotbarIdx = num - 1;
+                        Game.UI.refreshHUDDisplays();
+                    }
                 });
                 window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
 
-                // Automatic context initialization trigger maps validation for cross-platform mobile devices touch tracking layers
+                // Multi-platform pointer controls for Camera Orbit (Mouse & Single Finger drag)
+                const targetArea = document.getElementById('canvas-target');
+                
+                targetArea.addEventListener('pointerdown', (e) => {
+                    // Check if clicked directly on an interactive overlay/menu
+                    if (Game.UI.modalOpen || e.target.closest('.pointer')) return;
+                    
+                    // Left click/touch on the empty floor/air initiates drag orbits
+                    this.isDraggingCam = true;
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                    targetArea.setPointerCapture(e.pointerId);
+                });
+
+                targetArea.addEventListener('pointermove', (e) => {
+                    if (!this.isDraggingCam) return;
+                    
+                    const deltaX = e.clientX - this.lastMouseX;
+                    const deltaY = e.clientY - this.lastMouseY;
+                    
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+
+                    // Update camera alignment polar coordinate angles on drag
+                    Game.Engine.Controller.yawAngleX -= deltaX * 0.007;
+                    Game.Engine.Controller.pitchAngleY = Math.max(0.1, Math.min(Math.PI / 2.2, Game.Engine.Controller.pitchAngleY + deltaY * 0.005));
+                });
+
+                const releaseDrag = (e) => {
+                    if (this.isDraggingCam) {
+                        this.isDraggingCam = false;
+                        try { targetArea.releasePointerCapture(e.pointerId); } catch(err) {}
+                    }
+                };
+                targetArea.addEventListener('pointerup', releaseDrag);
+                targetArea.addEventListener('pointercancel', releaseDrag);
+
+                // Mouse wheel Zoom
+                window.addEventListener('wheel', (e) => {
+                    if (Game.UI.modalOpen) return;
+                    const zoomVelocity = e.deltaY * 0.01;
+                    Game.Engine.Controller.targetOrbitDist = Math.max(3.0, Math.min(20.0, Game.Engine.Controller.targetOrbitDist + zoomVelocity));
+                }, { passive: true });
+
+                // Multi-Touch Pinch Zoom (Mobile iOS/Android compatible)
+                window.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 2) {
+                        this.touchStartDist = Math.hypot(
+                            e.touches[0].clientX - e.touches[1].clientX,
+                            e.touches[0].clientY - e.touches[1].clientY
+                        );
+                    }
+                }, { passive: true });
+
+                window.addEventListener('touchmove', (e) => {
+                    if (e.touches.length === 2 && this.touchStartDist > 0) {
+                        const currentDist = Math.hypot(
+                            e.touches[0].clientX - e.touches[1].clientX,
+                            e.touches[0].clientY - e.touches[1].clientY
+                        );
+                        const deltaDist = this.touchStartDist - currentDist;
+                        this.touchStartDist = currentDist;
+                        
+                        // Scale orbit boundaries
+                        Game.Engine.Controller.targetOrbitDist = Math.max(3.0, Math.min(20.0, Game.Engine.Controller.targetOrbitDist + deltaDist * 0.08));
+                    }
+                }, { passive: true });
+
+                window.addEventListener('touchend', (e) => {
+                    if (e.touches.length < 2) {
+                        this.touchStartDist = 0;
+                    }
+                });
+
+                // Set up touch joystick controls
                 if('ontouchstart' in window) {
                     this.setupMobileTouchUIJoystickControl();
                 }
@@ -586,23 +677,22 @@
             setupMobileTouchUIJoystickControl() {
                 const zone = document.getElementById('joystick-zone');
                 const knob = document.getElementById('joystick-knob');
-                zone.style.display = 'block'; // Make element visible on touch configurations natively
+                zone.style.display = 'block';
 
-                window.addEventListener('touchstart', (e) => {
+                zone.addEventListener('touchstart', (e) => {
+                    e.stopPropagation();
                     const touch = e.touches[0];
-                    // Evaluate if bounds intercept the screen left sector grid mapping matrix layout regions
-                    if(touch.clientX < window.innerWidth / 2 && touch.clientY > window.innerHeight / 2) {
-                        this.joystickActive = true;
-                        this.joyStartPos.set(touch.clientX, touch.clientY);
-                        zone.style.left = `${touch.clientX - 60}px`;
-                        zone.style.top = `${touch.clientY - 60}px`;
-                        knob.style.transform = 'translate(0px, 0px)';
-                    }
+                    this.joystickActive = true;
+                    
+                    const rect = zone.getBoundingClientRect();
+                    this.joyStartPos.set(rect.left + rect.width / 2, rect.top + rect.height / 2);
                 }, { passive: true });
 
-                window.addEventListener('touchmove', (e) => {
+                zone.addEventListener('touchmove', (e) => {
                     if(!this.joystickActive) return;
+                    e.stopPropagation();
                     const touch = e.touches[0];
+                    
                     const dirX = touch.clientX - this.joyStartPos.x;
                     const dirY = touch.clientY - this.joyStartPos.y;
                     const distance = Math.min(45, Math.hypot(dirX, dirY));
@@ -612,16 +702,13 @@
                     const knY = distance * Math.sin(angle);
                     
                     knob.style.transform = `translate(${knX}px, ${knY}px)`;
-                    
-                    // Normalize standard internal steering direction vectors arrays fields data models
-                    this.moveVector.set(knX / 45, -knY / 45);
+                    this.moveVector.set(knX / 45, -knY / 45); // Joystick normalized direction coordinates
                 }, { passive: true });
 
-                window.addEventListener('touchend', () => {
+                zone.addEventListener('touchend', (e) => {
+                    e.stopPropagation();
                     this.joystickActive = false;
                     this.moveVector.set(0, 0);
-                    // Reset to initial static corner zones defaults positions
-                    zone.style.left = '40px'; zone.style.top = ''; zone.style.bottom = '40px';
                     knob.style.transform = 'translate(0px, 0px)';
                 });
             }
@@ -633,18 +720,12 @@
             yawAngleX: 0.8, pitchAngleY: 0.6, targetOrbitDist: 9.0,
 
             init() {
-                // Populate Character Entity Mesh Instance Context Model Node
                 this.playerMesh = Game.Entities.createPlayerModelAvatarMesh(Game.State.player.gender);
                 this.playerMesh.position.set(0, 0, 5);
                 Game.Engine.scene.add(this.playerMesh);
 
-                // Populate Town Merchant Supplier NPC Entity Item Grid Node Placement Array Coordinates Maps
                 this.setupTownMerchantNPCEntity();
-
-                // Setup Core Soil Agriculture Farmland Grid array matrices structures templates layout map rules
                 this.setupFarmlandPlotsCompoundGrid();
-
-                // Initialize camera alignment default positions sets vectors metrics references nodes bounding parameters
                 this.syncCameraPositionLoop(0.016);
             },
 
@@ -653,7 +734,6 @@
                 npc.position.set(-6, 0, -5); npc.rotation.y = Math.PI / 3;
                 Game.Engine.scene.add(npc);
 
-                // Wrap clear target interactive bounding volume mesh container for smooth precision mobile rays intersection checks 
                 const triggerBox = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.5, 2.2), new THREE.MeshBasicMaterial({visible: false}));
                 triggerBox.position.copy(npc.position); triggerBox.position.y = 1.2;
                 triggerBox.userData = { type: 'npc' };
@@ -677,7 +757,6 @@
                     plotMesh.position.set(xPos, 0.01, zPos);
                     plotMesh.receiveShadow = true;
 
-                    // Hydrate essential tracking lifecycle object fields schema directly to reference instance context maps 
                     plotMesh.userData = {
                         type: 'plot', id: i, isDug: false, cropType: null,
                         growthStage: 0, growthProgress: 0.0, isWatered: false,
@@ -693,52 +772,51 @@
             updateTickPhysicsFrame(delta) {
                 let dx = 0; let dz = 0;
                 
-                // Desktop Input Vector Translation Mapping Rules Evaluation
-                if(Game.Input.keys['w'] || Game.Input.keys['arrowup']) dz -= 1;
-                if(Game.Input.keys['s'] || Game.Input.keys['arrowdown']) dz += 1;
-                if(Game.Input.keys['a'] || Game.Input.keys['arrowleft']) dx -= 1;
-                if(Game.Input.keys['d'] || Game.Input.keys['arrowright']) dx += 1;
+                if(Game.Input.keys['w'] || Game.Input.keys['arrowup']) dz += 1;    // Positive Z is forward relative to look angle
+                if(Game.Input.keys['s'] || Game.Input.keys['arrowdown']) dz -= 1;  // Negative Z is backward relative to look angle
+                if(Game.Input.keys['a'] || Game.Input.keys['arrowleft']) dx += 1;  // Positive X is left relative to look angle
+                if(Game.Input.keys['d'] || Game.Input.keys['arrowright']) dx -= 1; // Negative X is right relative to look angle
 
-                // Handle composite overlay blending with Touch Vectors if available natively
+                // Mobile joystick translation coordinates configured to align with desktop layout signs
                 if(Game.Input.joystickActive) {
-                    dx = Game.Input.moveVector.x;
-                    dz = -Game.Input.moveVector.y;
+                    dx = -Game.Input.moveVector.x;
+                    dz = Game.Input.moveVector.y;
                 }
 
                 const isSprinting = Game.Input.keys['shift'];
                 const speedMult = isSprinting ? 9.0 : 4.5;
 
                 if(dx !== 0 || dz !== 0) {
-                    // Normalize direct input vectors across global viewport tracking camera angles coordinates matrices translations
-                    const cameraAngleY = Math.atan2(
-                        this.playerMesh.position.x - Game.Engine.camera.position.x,
-                        this.playerMesh.position.z - Game.Engine.camera.position.z
-                    );
+                    // Extract camera's planar/horizontal look angle (ignoring pitch/Y tilt)
+                    const lookX = this.playerMesh.position.x - Game.Engine.camera.position.x;
+                    const lookZ = this.playerMesh.position.z - Game.Engine.camera.position.z;
+                    const cameraAngleY = Math.atan2(lookX, lookZ);
+
                     const direction = new THREE.Vector3(dx, 0, dz).normalize();
+                    // Rotate input vector relative to horizontal camera perspective
                     direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngleY);
 
                     this.velocity.x = direction.x * speedMult;
                     this.velocity.z = direction.z * speedMult;
 
-                    // Interpolate avatar heading orientation towards movement trajectory angles
+                    // Smooth turn avatar character towards its active movement path
                     const targetAngle = Math.atan2(direction.x, direction.z);
                     let deltaAngle = targetAngle - this.playerMesh.rotation.y;
                     while(deltaAngle < -Math.PI) deltaAngle += Math.PI * 2;
                     while(deltaAngle > Math.PI) deltaAngle -= Math.PI * 2;
                     this.playerMesh.rotation.y += deltaAngle * 0.2;
 
-                    // Add simple algorithmic procedural walk bob animation loops tracking scales nodes shifts
+                    // Apply character walking bob animation
                     this.playerMesh.position.y = Math.abs(Math.sin(Game.Engine.clock.getElapsedTime() * (isSprinting ? 14 : 9))) * 0.12;
                 } else {
                     this.velocity.set(0, 0, 0);
                     this.playerMesh.position.y = 0;
                 }
 
-                // Append speed computations parameters onto physical translation points coordinates values fields
                 this.playerMesh.position.x += this.velocity.x * delta;
                 this.playerMesh.position.z += this.velocity.z * delta;
 
-                // Restrict boundaries mapping constraints rules sets to clear map edge drop falls zones regions
+                // Lock character boundary limits
                 this.playerMesh.position.x = Math.max(-90, Math.min(90, this.playerMesh.position.x));
                 this.playerMesh.position.z = Math.max(-90, Math.min(90, this.playerMesh.position.z));
 
@@ -747,14 +825,17 @@
             },
 
             syncCameraPositionLoop(delta) {
-                // Calculate dynamic tracking orbital offset boundaries mappings nodes calculations positions updates
                 const lookTargetPos = this.playerMesh.position.clone().add(new THREE.Vector3(0, 1.0, 0));
                 
+                // Render Camera Spherical Coordinates calculations
                 const cX = this.playerMesh.position.x + this.targetOrbitDist * Math.sin(this.yawAngleX) * Math.cos(this.pitchAngleY);
                 const cY = this.playerMesh.position.y + this.targetOrbitDist * Math.sin(this.pitchAngleY) + 1.2;
                 const cZ = this.playerMesh.position.z + this.targetOrbitDist * Math.cos(this.yawAngleX) * Math.cos(this.pitchAngleY);
 
-                Game.Engine.camera.position.lerp(new THREE.Vector3(cX, cY, cZ), 0.12);
+                const nextCamPos = new THREE.Vector3(cX, cY, cZ);
+                
+                // Smooth camera follow interpolation
+                Game.Engine.camera.position.lerp(nextCamPos, 0.15);
                 Game.Engine.camera.lookAt(lookTargetPos);
             },
 
@@ -793,15 +874,13 @@
         // --- CORE LOGICAL SIMULATION AGRICULTURE MECHANICS SUBSYSTEM ENGINE ---
         Game.Systems.Farming = {
             processPlotInteractionAction(data, meshObj) {
-                const inventoryKeysList = Object.keys(Game.State.player.inventory);
-                const activeHotbarKey = inventoryKeysList[Game.State.player.activeHotbarIdx];
-                const activeStoreTierConfig = SHOP_TIERS[Game.State.player.shopLevel - 1];
+                // Fetch perfectly synced active hotbar key generated from updateHotbarMapping mapping sequence.
+                const activeHotbarKey = Game.State.player.hotbar[Game.State.player.activeHotbarIdx];
 
-                // SCENARIO 1: SOIL IS RAW -> DIG WITH HOE TOOL REQUIRED
                 if(!data.isDug) {
                     if(activeHotbarKey === 'tool_dig') {
                         data.isDug = true;
-                        meshObj.material.color.setHex(0x4a3728); // Update color to dark plowed soil texture hue
+                        meshObj.material.color.setHex(0x4a3728);
                         GameSound.play('dig');
                         Game.UI.triggerNotificationToast("ขุดพรวนดินเสร็จสิ้น แปลงพร้อมสำหรับการเพาะปลูกแล้ว!", "success");
                         Game.State.player.xp += 5; Game.Systems.Quests.evaluateTriggerTrackingUpdate('dig', 'soil', 1);
@@ -812,7 +891,6 @@
                     return;
                 }
 
-                // SCENARIO 2: LAND PLOWED BUT EMPTY -> PLANT FRUIT SEED SPEC PACKAGE
                 if(!data.cropType) {
                     if(activeHotbarKey && activeHotbarKey.startsWith('seed_')) {
                         const targetFruitId = activeHotbarKey.replace('seed_', '');
@@ -837,14 +915,11 @@
                     return;
                 }
 
-                // SCENARIO 3: ACTIVE INFECTIOUS DISEASE FLAGGED -> DISPLAY DIAGNOSIS TREATMENT PROMPT
                 if(data.diseaseId) {
-                    // Open modal and switch to education/treatment pane directly
                     Game.UI.openDiseaseEducationalDiagnosticPane(data.cropType, data, meshObj);
                     return;
                 }
 
-                // SCENARIO 4: MATURED FRUITS HARVEST TIME -> COLLECT ASSET AND EARN BANKING CREDITS
                 if(data.growthStage === 5) {
                     const yieldCropStorageKey = `crop_${data.cropType}`;
                     Game.State.player.inventory[yieldCropStorageKey] = (Game.State.player.inventory[yieldCropStorageKey] || 0) + 1;
@@ -856,20 +931,18 @@
                     Game.UI.triggerNotificationToast(`เก็บเกี่ยวผลผลิต ${FRUIT_SPECS[data.cropType].name}! (+${earnedXPAmountPoints} XP)`, "success");
                     Game.Systems.Quests.evaluateTriggerTrackingUpdate('harvest', data.cropType, 1);
                     
-                    // Reset fields tracking data clean values loops properties
                     if(data.modelRef) meshObj.remove(data.modelRef);
                     data.cropType = null; data.growthStage = 0; data.growthProgress = 0.0; data.isWatered = false;
-                    meshObj.material.color.setHex(0x5c4033); // Revert to dry plowed earth hue
+                    meshObj.material.color.setHex(0x5c4033);
 
                     this.refreshGlobalDependenciesState();
                     return;
                 }
 
-                // SCENARIO 5: STANDARD GROWTH MAINTENANCE CYCLE -> APPLY HYDRATION WATERING CAN CANISTER
                 if(activeHotbarKey === 'tool_water') {
                     if(!data.isWatered) {
                         data.isWatered = true;
-                        meshObj.material.color.setHex(0x271911); // Saturation soil visual effect mapping color change
+                        meshObj.material.color.setHex(0x271911);
                         GameSound.play('water');
                         Game.UI.triggerNotificationToast("รดน้ำบำรุงดินฉีดชื้นเสร็จสิ้น อัตราเติบโตเพิ่มขึ้น!", "success");
                         Game.State.player.xp += 2;
@@ -904,10 +977,8 @@
                 const storeUpgradeConfig = SHOP_TIERS[Game.State.player.shopLevel - 1];
                 
                 Game.State.plots.forEach((plot) => {
-                    // Growth process locks entirely if disease occurs or index matches empty references sets values
                     if(plot.cropType && plot.growthStage < 5 && !plot.diseaseId) {
                         const baseConfigSpec = FRUIT_SPECS[plot.cropType];
-                        // Watered plants grow significantly faster
                         const environmentalHydrationBoostSpeedFactor = plot.isWatered ? 1.4 : 0.4;
                         const finalCompositeGrowthIncrementValue = (delta / baseConfigSpec.growthTime) * environmentalHydrationBoostSpeedFactor * storeUpgradeConfig.speedMult;
                         
@@ -917,9 +988,8 @@
                         if(evaluatedCalculatedStageValue !== plot.growthStage) {
                             plot.growthStage = evaluatedCalculatedStageValue;
                             
-                            // Random Disease Outbreak Check upon entering new structural leaf development cycles
                             if(plot.growthStage === 3 || plot.growthStage === 4) {
-                                if(Math.random() < 0.22) { // 22% disease occurrence evaluation rate
+                                if(Math.random() < 0.22) {
                                     plot.diseaseId = DISEASE_SPECS[plot.cropType].id;
                                     Game.UI.triggerNotificationToast(`⚠️ เตือนภัย! ตรวจพบสัญญานโรคระบาดพืชบนฟาร์มของคุณ ตรวจสอบด่วน`, "error");
                                 }
@@ -958,7 +1028,6 @@
             verifyIntegrityPopulationArray() {
                 if(Game.State.quests.length > 0) return;
                 
-                // Repopulate a fresh localized educational quest package array sequence structure
                 Game.State.quests = [
                     { id: 'q1', type: 'plant',   target: 'rambutan',   req: 3, cur: 0, rewardCoins: 120, desc: "ปลูกต้นเงาะเศรษฐกิจ 3 ต้นในฟาร์ม", claimed: false },
                     { id: 'q2', type: 'harvest', target: 'durian',     req: 1, cur: 0, rewardCoins: 250, desc: "เก็บเกี่ยวทุเรียนหมอนทองราชาผลไม้ 1 ผล", claimed: false },
@@ -1028,13 +1097,11 @@
                 
                 Game.State.player.name = nameInp;
                 
-                // Remove login intro page setup interface layers view state smooth fading 
                 gsap.to('#screen-character-select', {opacity: 0, duration: 0.4, onComplete: () => {
                     document.getElementById('screen-character-select').style.display = 'none';
                     document.querySelectorAll('.ready-hud').forEach(el => el.classList.remove('hidden'));
                 }});
 
-                // Build character components configurations models
                 Game.Engine.Controller.init();
                 this.refreshHUDDisplays();
             },
@@ -1042,23 +1109,52 @@
             instantiateHUDHotbarSlotsDOM() {
                 const container = document.getElementById('hud-hotbar');
                 container.innerHTML = '';
-                const sizeKeys = Object.keys(Game.State.player.inventory);
                 
-                for(let i=0; i<6; i++) { // Render 6 primary usable hotbar grid quick shortcuts
+                for(let i=0; i<6; i++) {
                     const block = document.createElement('div');
-                    block.className = "w-12 h-12 rounded-xl bg-slate-900 border-2 border-slate-700 flex flex-col items-center justify-center relative cursor-pointer hover:border-amber-400 transition-all select-none";
+                    block.className = "w-12 h-12 rounded-xl bg-slate-900 border-2 border-slate-700 flex flex-col items-center justify-center relative cursor-pointer hover:border-amber-400 hover:scale-105 transition-all select-none touch-manipulation";
                     block.setAttribute('data-hotbar-slot-index', i);
                     block.innerHTML = `
-                        <span class="text-xl cell-icon"></span>
-                        <span class="absolute bottom-0 right-1 text-[9px] font-bold text-slate-400 cell-qty"></span>
-                        <span class="absolute top-0.5 left-1 text-[8px] text-slate-600 font-mono">${i+1}</span>
+                        <span class="text-xl cell-icon no-pointer"></span>
+                        <span class="absolute bottom-0 right-1 text-[9px] font-bold text-slate-400 cell-qty no-pointer"></span>
+                        <span class="absolute top-0.5 left-1 text-[8px] text-slate-600 font-mono no-pointer">${i+1}</span>
                     `;
+
+                    // Handle selection event (clicks & taps)
+                    const onSelect = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        GameSound.play('click');
+                        Game.State.player.activeHotbarIdx = i;
+                        Game.UI.refreshHUDDisplays();
+                    };
+
+                    block.addEventListener('click', onSelect);
+                    block.addEventListener('touchstart', onSelect, { passive: false });
+
                     container.appendChild(block);
                 }
             },
 
+            updateHotbarMapping() {
+                const items = [];
+                // Always prioritize fundamental tools if acquired
+                if (Game.State.player.inventory['tool_dig']) items.push('tool_dig');
+                if (Game.State.player.inventory['tool_water']) items.push('tool_water');
+                
+                // Automatically populate remaining slots with active supplies (seeds, crops, medicines)
+                for (const [k, v] of Object.entries(Game.State.player.inventory)) {
+                    if (!k.startsWith('tool_') && v > 0) {
+                        items.push(k);
+                    }
+                }
+                
+                // Pad to exactly 6 fixed inventory visual hotbar blocks
+                while (items.length < 6) items.push(null);
+                Game.State.player.hotbar = items.slice(0, 6);
+            },
+
             refreshHUDDisplays() {
-                // Map text strings numbers onto screen elements configurations nodes fields targets 
                 document.getElementById('hud-coins').innerText = Game.State.player.coins.toLocaleString();
                 document.getElementById('modal-coin-label').innerText = `${Game.State.player.coins.toLocaleString()} 🪙`;
                 document.getElementById('hud-level').innerText = Game.State.player.level;
@@ -1069,42 +1165,36 @@
                 document.getElementById('hud-xp-bar').style.width = `${xpPct}%`;
                 document.getElementById('hud-xp-text').innerText = `${Game.State.player.xp}/${xpCapValue} XP`;
 
-                // Update Farm Game Time Display format
                 const tMin = Math.floor(Game.State.environment.time);
                 const formatHrs = Math.floor(tMin / 60).toString().padStart(2, '0');
                 const formatMins = Math.floor(tMin % 60).toString().padStart(2, '0');
                 document.getElementById('hud-clock').innerText = `${formatHrs}:${formatMins}`;
 
-                // Sync Hotbar Slots item inventory array structures loops
+                this.updateHotbarMapping();
                 const hotbarDOMCells = document.querySelectorAll('#hud-hotbar > [data-hotbar-slot-index]');
-                const invItemKeysList = Object.keys(Game.State.player.inventory);
 
                 hotbarDOMCells.forEach((cell, idx) => {
-                    const key = invItemKeysList[idx];
-                    const count = Game.State.player.inventory[key] || 0;
+                    const key = Game.State.player.hotbar[idx];
+                    const count = key ? (Game.State.player.inventory[key] || 0) : 0;
                     
                     const elIcon = cell.querySelector('.cell-icon');
                     const elQty = cell.querySelector('.cell-qty');
 
                     if(idx === Game.State.player.activeHotbarIdx) {
-                        cell.className = "w-12 h-12 rounded-xl bg-slate-800 border-2 border-amber-400 flex flex-col items-center justify-center relative cursor-pointer scale-105 shadow-md";
-                        document.getElementById('hud-hotbar-label').innerText = key ? this.translateItemKeyToThaiLabelString(key) : "ว่าง";
+                        cell.className = "w-12 h-12 rounded-xl bg-slate-800 border-2 border-amber-400 flex flex-col items-center justify-center relative cursor-pointer scale-105 shadow-md select-none touch-manipulation";
+                        document.getElementById('hud-hotbar-label').innerText = key ? this.translateItemKeyToThaiLabelString(key, count) : "ว่าง (มือเปล่า)";
                     } else {
-                        cell.className = "w-12 h-12 rounded-xl bg-slate-900 border-2 border-slate-700 flex flex-col items-center justify-center relative cursor-pointer hover:border-slate-500";
+                        cell.className = "w-12 h-12 rounded-xl bg-slate-900 border-2 border-slate-700 flex flex-col items-center justify-center relative cursor-pointer hover:border-slate-500 select-none touch-manipulation";
                     }
 
-                    if(key && count > 0) {
+                    if(key && (count > 0 || key.startsWith('tool_'))) {
                         elIcon.innerText = this.parseItemKeyToVisualEmojiSymbol(key);
-                        elQty.innerText = count;
-                    } else if (key && key.startsWith('tool_')) {
-                        elIcon.innerText = this.parseItemKeyToVisualEmojiSymbol(key);
-                        elQty.innerText = '∞'; // Tools are infinite use
+                        elQty.innerText = key.startsWith('tool_') ? '∞' : `x${count}`;
                     } else {
                         elIcon.innerText = ''; elQty.innerText = '';
                     }
                 });
 
-                // Update active quests tracker list panel view components
                 const questBox = document.getElementById('hud-quest-list');
                 questBox.innerHTML = '';
                 
@@ -1128,12 +1218,13 @@
                 }
             },
 
-            translateItemKeyToThaiLabelString(key) {
-                if(key === 'tool_dig') return "🛠️ จอบขุดพรวนดิน";
-                if(key === 'tool_water') return "🪣 บัวรดน้ำต้นไม้";
-                if(key === 'medicine_generic') return "💊ยารักษาโรคพืชทั่วไป";
-                if(key.startsWith('seed_')) return `🌱 เมล็ดพันธุ์${FRUIT_SPECS[key.replace('seed_','')].name}`;
-                if(key.startsWith('crop_')) return `📦 ผลผลิต${FRUIT_SPECS[key.replace('crop_','')].name}`;
+            translateItemKeyToThaiLabelString(key, count = 0) {
+                if(!key) return "ว่าง";
+                if(key === 'tool_dig') return "🛠️ จอบขุดพรวนดิน (∞)";
+                if(key === 'tool_water') return "🪣 บัวรดน้ำต้นไม้ (∞)";
+                if(key === 'medicine_generic') return `💊 ยารักษาโรคพืชทั่วไป (x${count})`;
+                if(key.startsWith('seed_')) return `🌱 เมล็ดพันธุ์${FRUIT_SPECS[key.replace('seed_','')].name} (x${count})`;
+                if(key.startsWith('crop_')) return `📦 ผลผลิต${FRUIT_SPECS[key.replace('crop_','')].name} (x${count})`;
                 return key;
             },
 
@@ -1194,7 +1285,6 @@
                 if(!this.modalOpen) this.toggleModalView();
                 this.switchTabWindowView('edu');
                 
-                // Smooth autoscroll down highlights target disease card structure
                 setTimeout(() => {
                     const card = document.getElementById(`edu-card-${fruitId}`);
                     if(card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1214,7 +1304,7 @@
                             grid.className = "bg-slate-950 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-inner";
                             grid.innerHTML = `
                                 <div class="text-3xl mb-1">${this.parseItemKeyToVisualEmojiSymbol(key)}</div>
-                                <div class="text-[11px] font-bold text-slate-200 truncate w-full">${this.translateItemKeyToThaiLabelString(key)}</div>
+                                <div class="text-[11px] font-bold text-slate-200 truncate w-full">${this.translateItemKeyToThaiLabelString(key, qty).replace(/\s\(x\d+\)|\s\(∞\)/, '')}</div>
                                 <div class="text-[10px] text-emerald-400 font-mono mt-1">จำนวน: ${key.startsWith('tool_') ? 'ไม่จำกัด' : qty}</div>
                             `;
                             box.appendChild(grid);
@@ -1222,10 +1312,8 @@
                     });
                 } 
                 else if(this.currentActiveTabId === 'shop') {
-                    // Populate Items Buy Lists rows arrays
                     const buyRoot = document.getElementById('shop-buy-list'); buyRoot.innerHTML = '';
                     
-                    // Render Seed purchase list items loops
                     Object.keys(FRUIT_SPECS).forEach(key => {
                         const spec = FRUIT_SPECS[key];
                         const div = document.createElement('div');
@@ -1240,7 +1328,6 @@
                         buyRoot.appendChild(div);
                     });
 
-                    // Add dynamic row for buying disease medicine configuration supplies
                     const medDiv = document.createElement('div');
                     medDiv.className = "bg-slate-950 border border-slate-850 p-2 rounded-xl flex justify-between items-center text-xs mt-2";
                     medDiv.innerHTML = `
@@ -1252,7 +1339,6 @@
                     `;
                     buyRoot.appendChild(medDiv);
 
-                    // Populate Harvest Produce Liquidation Sell Arrays
                     const sellRoot = document.getElementById('shop-sell-list'); sellRoot.innerHTML = '';
                     let countSellableAssets = 0;
 
@@ -1291,7 +1377,6 @@
 
                         const card = document.createElement('div');
                         card.id = `edu-card-${key}`;
-                        // Add vibrant flashing highlights borders if redirected from a diseased plot plant point trigger
                         const boundaryAccentStyles = hasActiveContextMatchedMatch ? 'border-red-500 bg-red-950/20 scale-[1.01]' : 'border-slate-800 bg-slate-950/40';
                         
                         card.className = `border p-4 rounded-2xl flex flex-col justify-between transition-all text-xs ${boundaryAccentStyles}`;
@@ -1387,14 +1472,13 @@
                     
                     const ctx = this.savedInfectionContextRef;
                     ctx.data.diseaseId = null;
-                    // Fast track acceleration to healthy reset state models updates
                     Game.Systems.Farming.rebuildPlantModelMeshNodeHierarchy(ctx.data, ctx.mesh);
                     
                     this.triggerNotificationToast("บำบัดรักษาเรียบร้อย! ต้นไม้ของคุณฟื้นสภาพกลับมาแข็งแรงพร้อมเติบโตต่อแล้ว", "success");
                     Game.Systems.Quests.evaluateTriggerTrackingUpdate('cure', 'any', 1);
                     
                     this.savedInfectionContextRef = null;
-                    this.toggleModalView(); // Dismiss structural panel views
+                    this.toggleModalView();
                     Game.Systems.Farming.refreshGlobalDependenciesState();
                 } else {
                     this.triggerNotificationToast("คุณไม่มีขวดยารักษาโรคเหลืออยู่ กรุณาแวะซื้อปัจจัยที่ร้านค้าชุมชนก่อน", "error");
@@ -1415,50 +1499,29 @@
             }
         };
 
-        // --- ATTACH DESKTOP STRATIFIED KEYBOARD INTERACTION INDEX SELECTION LOGICS ---
-        window.addEventListener('keydown', (e) => {
-            const parsedNumKey = parseInt(e.key);
-            if(parsedNumKey >= 1 && parsedNumKey <= 6) {
-                GameSound.play('click');
-                Game.State.player.activeHotbarIdx = parsedNumKey - 1;
-                Game.UI.refreshHUDDisplays();
-            }
-        });
-
         // --- ENGINE BOOTSTRAP APPS INITIALIZATION LIFECYCLE ROUTINES ---
         window.addEventListener('DOMContentLoaded', () => {
-            // Restore persistent progress tracks matrices states mapping layout configurations
             Game.Data.load();
             
-            // Fire global sub-system structural modules elements initialization matrices pipeline
             Game.Engine.init();
             Game.Input.init();
             Game.UI.init();
 
-            // Run central runtime application execution loops tracker stack
             const centralRenderingHeartbeatFrameLoop = () => {
                 requestAnimationFrame(centralRenderingHeartbeatFrameLoop);
                 
-                // Keep delta intervals scaled to circumvent frame drops glitches anomalies updates lagging spikes
                 const delta = Math.min(0.08, Game.Engine.clock.getDelta());
                 const runningTotalTimeSeconds = Game.Engine.clock.getElapsedTime();
 
                 if(!Game.UI.modalOpen && document.getElementById('screen-character-select').style.display === 'none') {
-                    // Update movement translations computations sets nodes tracking loops
                     Game.Engine.Controller.updateTickPhysicsFrame(delta);
-                    
-                    // Progress plant metrics growth ticks parameters mapping matrices sets pipelines execution
                     Game.Systems.Farming.executeContinuousGrowthTickCalculation(delta);
 
-                    // Advance system weather day-night environment times tracking indicators
-                    Game.State.environment.time += delta * 1.5; // Scaled time metrics speeds configuration mapping
-                    if(Game.State.environment.time >= 1440) Game.State.environment.time = 0; // Reset midnight clock wrap
+                    Game.State.environment.time += delta * 1.5;
+                    if(Game.State.environment.time >= 1440) Game.State.environment.time = 0;
                 }
 
-                // Tick dynamic animated scenario subcomponents props meshes queues transformations functions
                 Game.Engine.sceneDynamicObjects.forEach(obj => { if(obj.tick) obj.tick(runningTotalTimeSeconds); });
-
-                // Render current active frame buffer arrays configurations layouts states updates commands
                 Game.Engine.renderer.render(Game.Engine.scene, Game.Engine.camera);
             };
 
