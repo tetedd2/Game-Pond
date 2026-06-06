@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ผลดีฟาร์ม 3D (Phondee Farm 3D)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        body, html {
+            margin: 0; padding: 0; overflow: hidden;
+            width: 100vw; height: 100vh;
+            user-select: none; -webkit-user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif, 'Kanit';
+            background-color: #0b0f19; touch-action: none;
+        }
+        #canvas-target { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+        .no-pointer { pointer-events: none; }
+        .pointer { pointer-events: auto; }
+        
+        /* Mobile Joystick Styles overlay map */
+        #joystick-zone {
+            position: absolute; bottom: 40px; left: 40px;
+            width: 120px; height: 120px; z-index: 30;
+            background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 50%; backdrop-filter: blur(5px); display: none;
+        }
+        #joystick-knob {
+            position: absolute; top: 35px; left: 35px;
+            width: 50px; height: 50px;
+            background: radial-gradient(circle, #f59e0b 0%, #d97706 100%);
+            border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-target"></div>
+    
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
+
+    <div id="ui-global-wrapper" class="absolute inset-0 z-10 no-pointer flex flex-col justify-between p-4 text-white">
+        
+        <div id="screen-character-select" class="fixed inset-0 bg-gradient-to-br from-slate-900 via-emerald-950 to-stone-900 z-50 flex items-center justify-center pointer">
+            <div class="bg-slate-950/90 border-2 border-emerald-500/40 p-8 rounded-3xl max-w-md w-full shadow-2xl text-center backdrop-blur-xl">
+                <h1 class="text-3xl font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-amber-400 mb-2">ผลดีฟาร์ม 3D</h1>
+                <p class="text-xs text-slate-400 mb-6">Phondee Farm • โปรแกรมจำลองการเกษตรเชิงเศรษฐกิจพอเพียง</p>
+                
+                <div class="mb-5 text-left">
+                    <label class="text-xs font-bold uppercase tracking-wider text-emerald-400 block mb-2">ชื่อเกษตรกรของคุณ :</label>
+                    <input type="text" id="input-player-name" value="สมชาย ใจดี" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-medium focus:outline-none focus:border-emerald-500 transition-colors">
+                </div>
+                
+                <label class="text-xs font-bold uppercase tracking-wider text-emerald-400 block text-left mb-2">เลือกตัวละครของคุณ :</label>
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div id="char-opt-boy" onclick="Game.UI.selectGenderCharacterSetup('boy')" class="border-2 border-emerald-500 bg-emerald-950/30 p-4 rounded-2xl cursor-pointer transition-all hover:scale-105 flex flex-col items-center">
+                        <span class="text-4xl mb-2">👦</span>
+                        <span class="text-sm font-bold">เด็กชาย (Boy)</span>
+                    </div>
+                    <div id="char-opt-girl" onclick="Game.UI.selectGenderCharacterSetup('girl')" class="border-2 border-slate-800 bg-slate-900/50 p-4 rounded-2xl cursor-pointer transition-all hover:scale-105 flex flex-col items-center">
+                        <span class="text-4xl mb-2">👧</span>
+                        <span class="text-sm font-bold text-slate-400">เด็กหญิง (Girl)</span>
+                    </div>
+                </div>
+                
+                <button onclick="Game.UI.commitInitializationConfig()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black tracking-wide py-3.5 rounded-xl shadow-xl transition-all transform active:scale-95 cursor-pointer">
+                    สร้างฟาร์มผลดีทันที 🚀
+                </button>
+            </div>
+        </div>
+
+        <div class="w-full flex justify-between items-start no-pointer ready-hud hidden">
+            <div class="pointer bg-slate-950/80 backdrop-blur-md border border-emerald-500/30 p-3 rounded-2xl flex items-center gap-3.5 min-w-[220px] shadow-xl">
+                <div id="hud-level" class="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 font-black text-xl flex items-center justify-center text-slate-950 border border-emerald-300">1</div>
+                <div class="flex-1">
+                    <div class="flex justify-between items-baseline">
+                        <span id="hud-player-name" class="font-bold text-sm text-slate-100 truncate max-w-[100px]">สมชาย</span>
+                        <span id="hud-xp-text" class="text-[10px] font-bold text-emerald-400">0/100 XP</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full mt-1 overflow-hidden border border-slate-700">
+                        <div id="hud-xp-bar" class="h-full bg-gradient-to-r from-emerald-400 to-cyan-400" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pointer bg-slate-950/80 backdrop-blur-md border border-slate-800 px-4 py-2 rounded-2xl flex items-center gap-4 text-center shadow-md">
+                <div>
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">เวลาในฟาร์ม</div>
+                    <div id="hud-clock" class="text-base font-black text-amber-400 font-mono">08:00</div>
+                </div>
+                <div class="w-px h-6 bg-slate-800"></div>
+                <div>
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">สภาพอากาศ</div>
+                    <div id="hud-weather" class="text-xs font-bold text-slate-200">☀️ แดดจัด</div>
+                </div>
+            </div>
+
+            <div class="pointer bg-slate-950/80 backdrop-blur-md border border-amber-500/30 px-4 py-2.5 rounded-2xl flex flex-col items-end min-w-[120px] shadow-xl">
+                <span class="text-[10px] font-bold tracking-wider uppercase text-amber-400">เหรียญทองรวม</span>
+                <span id="hud-coins" class="text-xl font-black text-amber-300 flex items-center gap-1">150 <span class="text-xs">🪙</span></span>
+            </div>
+        </div>
+
+        <div class="w-full flex justify-between items-center my-auto no-pointer ready-hud hidden">
+            <div class="pointer bg-slate-950/85 backdrop-blur-md border border-slate-800 p-4 rounded-2xl w-64 shadow-xl hidden md:block">
+                <div class="flex items-center gap-2 mb-2 pb-1.5 border-b border-slate-800">
+                    <span class="text-emerald-400">📜</span>
+                    <h3 class="font-bold text-xs uppercase tracking-wider text-slate-300">ภารกิจที่ต้องทำ</h3>
+                </div>
+                <div id="hud-quest-list" class="space-y-2.5 text-xs">
+                    </div>
+            </div>
+
+            <div id="hud-prompt-action" class="hidden mx-auto bg-amber-500 text-slate-950 font-black px-6 py-3 rounded-full border-2 border-amber-300 shadow-2xl flex items-center gap-2 animate-bounce transform text-sm transition-all pointer">
+                <span class="bg-slate-950 text-white rounded-md text-[10px] px-1.5 py-0.5 font-mono">CLICK</span>
+                <span id="hud-prompt-text">จัดการพื้นที่ดิน</span>
+            </div>
+            
+            <div class="w-64 h-12 no-pointer invisible hidden md:block"></div>
+        </div>
+
+        <div class="w-full flex flex-col items-center gap-2.5 no-pointer ready-hud hidden">
+            <div id="hud-hotbar-label" class="text-xs font-bold text-amber-400 bg-slate-950/90 border border-slate-800 px-3 py-1 rounded-lg shadow-sm">
+                มือเปล่า
+            </div>
+            
+            <div class="flex items-center gap-2 pointer bg-slate-950/90 border-2 border-slate-800 p-2 rounded-2xl shadow-2xl" id="hud-hotbar">
+                </div>
+            
+            <div class="text-[10px] text-slate-400 bg-slate-950/60 backdrop-blur-sm px-4 py-1 rounded-full border border-slate-900 hidden sm:flex gap-4">
+                <div><b class="text-slate-200">W,A,S,D</b> เคลื่อนที่</div>
+                <div><b class="text-slate-200">SHIFT</b> วิ่งไว</div>
+                <div><b class="text-slate-200">คลิกซ้าย</b> โต้ตอบแปลงดิน</div>
+                <div><b class="text-slate-200">กดปุ่ม I</b> เปิดร้านค้า/กระเป๋า</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-container" class="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-40 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div id="modal-card" class="bg-slate-900 border-2 border-emerald-500/30 rounded-3xl w-[780px] max-w-[95vw] h-[500px] overflow-hidden shadow-2xl flex flex-col transform scale-95 transition-transform duration-300">
+            
+            <div class="bg-slate-950 px-6 py-4 flex justify-between items-center border-b border-slate-800">
+                <div class="flex gap-5">
+                    <button id="tab-btn-inventory" onclick="Game.UI.switchTabWindowView('inventory')" class="text-emerald-400 border-b-2 border-emerald-400 font-bold text-sm pb-1 focus:outline-none cursor-pointer">กระเป๋าสัมภาระ</button>
+                    <button id="tab-btn-shop" onclick="Game.UI.switchTabWindowView('shop')" class="text-slate-400 hover:text-slate-200 font-semibold text-sm pb-1 focus:outline-none cursor-pointer">ร้านค้าชุมชนเกษตร</button>
+                    <button id="tab-btn-edu" onclick="Game.UI.switchTabWindowView('edu')" class="text-slate-400 hover:text-slate-200 font-semibold text-sm pb-1 focus:outline-none cursor-pointer">ห้องเรียนโรคพืช 📚</button>
+                </div>
+                <button onclick="Game.UI.toggleModalView()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-red-500/80 flex items-center justify-center font-black text-slate-400 hover:text-white transition-colors cursor-pointer">&times;</button>
+            </div>
+
+            <div class="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-slate-900 to-slate-950">
+                
+                <div id="view-pane-inventory" class="grid grid-cols-4 sm:grid-cols-5 gap-4">
+                    </div>
+
+                <div id="view-pane-shop" class="hidden space-y-4">
+                    <div class="bg-emerald-950/30 border border-emerald-500/20 p-3.5 rounded-xl flex items-center gap-3 text-xs">
+                        <span class="text-3xl">👨‍🌾</span>
+                        <div>
+                            <h4 class="font-bold text-emerald-400">ลุงสมดี • พ่อค้าร้านเกษตรอัจฉริยะ</h4>
+                            <p class="text-slate-400 mt-0.5">"ยินดีต้อนรับ! สามารถนำผลผลิตมาขายทำกำไร และซื้อยาไปรักษาโรคพืชที่นี่ได้เลยนะ"</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                        <div>
+                            <span class="text-slate-400">ระดับร้านค้าปัจจุบัน:</span>
+                            <span id="shop-tier-label" class="font-bold text-amber-400 ml-1">Basic Shop (ระดับ 1)</span>
+                        </div>
+                        <button onclick="Game.UI.upgradeLocalShopTier()" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black px-3 py-1.5 rounded-lg transition-all text-[11px] cursor-pointer">
+                            อัปเกรดร้านค้า (ใช้ 300 🪙)
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h5 class="text-[10px] uppercase font-bold text-emerald-400 tracking-wider mb-2">รายการซื้อปัจจัยการผลิต</h5>
+                            <div id="shop-buy-list" class="space-y-2 max-h-[180px] overflow-y-auto pr-1"></div>
+                        </div>
+                        <div>
+                            <h5 class="text-[10px] uppercase font-bold text-amber-400 tracking-wider mb-2">รายการขายผลผลิตทางการเกษตร</h5>
+                            <div id="shop-sell-list" class="space-y-2 max-h-[180px] overflow-y-auto pr-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-pane-edu" class="hidden space-y-4">
+                    <h4 class="text-sm font-bold text-emerald-400 border-b border-slate-800 pb-2 flex items-center gap-2">
+                        <span>📖</span> คู่มือวินิจฉัยและระงับการแพร่ระบาดโรคพืชเศรษฐกิจไทย
+                    </h4>
+                    <div id="edu-cards-root" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        </div>
+                </div>
+
+            </div>
+
+            <div class="bg-slate-950 px-6 py-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+                <div>กดปุ่ม <kbd class="bg-slate-800 text-slate-200 px-1.5 py-0.5 rounded border border-slate-700">I</kbd> อีกครั้งเพื่อออกจากหน้านี้</div>
+                <div class="flex items-center gap-2">
+                    <span>กระเป๋าเงินของคุณ:</span>
+                    <span id="modal-coin-label" class="text-sm font-black text-amber-400">150 🪙</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Phondee Farm 3D Game Core Architecture Engine
+         */
+
+        // --- CROP AND DISEASE CONFIGURATION SCHEMAS (ECONOMIC TRADITIONAL SPEC) ---
+        const FRUIT_SPECS = {
+            rambutan:   { id: 'rambutan',   name: 'เงาะ (Rambutan)',   growthTime: 12, seedPrice: 15, sellPrice: 50,  xp: 20, color: 0xd90429, icon: '🥕', modelStyle: 'bush' },
+            mangosteen: { id: 'mangosteen', name: 'มังคุด (Mangosteen)', growthTime: 20, seedPrice: 30, sellPrice: 80,  xp: 45, color: 0x3f1651, icon: '🍇', modelStyle: 'roundTree' },
+            durian:     { id: 'durian',     name: 'ทุเรียน (Durian)',     growthTime: 35, seedPrice: 60, sellPrice: 150, xp: 90, color: 0xeeef20, icon: '🍍', modelStyle: 'spikyTree' }
+        };
+
+        const DISEASE_SPECS = {
+            rambutan:   { id: 'leaf_spot',  name: 'โรคใบจุด (Leaf Spot)',   cause: 'เกิดจากเชื้อราในฤดูฝนเนื่องจากความชื้นสะสมสูงเกินไปบนใบพืช', treatment: 'พ่นสารเคมีรักษาโรคพืชกลุ่มคอปเปอร์ และตัดแต่งกิ่งให้โปร่งเพื่อให้อากาศถ่ายเทสะดวก', prevention: 'ไม่ควรปลูกต้นไม้ชิดกันเกินไป คอยตรวจตราส่องดูรอยจุดสีน้ำตาลบนใบอย่างสม่ำเสมอ', icon: '🍂' },
+            durian:     { id: 'root_rot',   name: 'โรครากเน่า (Root Rot)',   cause: 'เกิดจากเชื้อรา Phytophthora เข้าทำลายระบบรากเนื่องจากน้ำขังในดินนานเกินไป', treatment: 'ทายาซ่อมแซมแผลโคนต้นพืช และลดปริมาณความถี่ในการให้น้ำทันทีเพื่อลดความชื้นสะสม', prevention: 'เตรียมร่องระบายน้ำให้ฟาร์มอย่างดี ห้ามให้น้ำขังบริเวณโคนต้นเด็ดขาด', icon: '🍄' },
+            mangosteen: { id: 'leaf_blight', name: 'โรคใบไหม้ (Leaf Blight)', cause: 'เกิดจากแบคทีเรียเข้าทำลายเนื้อเยื่อใบในช่วงแดดจัดสลับฝนตกชุก', treatment: 'ใช้ยาฆ่าเชื้อแบคทีเรียสูตรเฉพาะพ่น และเด็ดใบส่วนที่แห้งกรอบออกไปเผาทำลายนอกบริเวณแปลง', prevention: 'ฉีดพ่นสารสกัดสมุนไพรป้องกันแบคทีเรียก่อนเริ่มฤดูมรสุมสลับแล้ง', icon: '🔥' }
+        };
+
+        const SHOP_TIERS = [
+            { level: 1, name: "Basic Shop (ระดับ 1)", speedMult: 1.0, medicineCost: 20 },
+            { level: 2, name: "Improved Shop (ระดับ 2)", speedMult: 1.2, medicineCost: 15 },
+            { level: 3, name: "Advanced Ag Store (ระดับ 3)", speedMult: 1.5, medicineCost: 12 },
+            { level: 4, name: "Premium Smart Farm Store (ระดับ 4)", speedMult: 2.0, medicineCost: 8 }
+        ];
+
+        // --- SYNTHESIZED WEB AUDIO CONTEXT MECHANICS (AUDIO REPLACEMENT ENGINE) ---
+        const GameSound = {
+            ctx: null,
+            init() {
+                // Initialize clean instance layout map tracking arrays 
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            },
+            play(type) {
+                if(!this.ctx) return;
+                try {
+                    // Quick safety trigger path ensuring context resumes if suspended by browsing rules
+                    if(this.ctx.state === 'suspended') this.ctx.resume();
+                    
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    const now = this.ctx.currentTime;
+                    if(type === 'click') {
+                        osc.type = 'sine'; osc.frequency.setValueAtTime(400, now);
+                        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+                        osc.start(now); osc.stop(now + 0.05);
+                    } else if(type === 'water') {
+                        osc.type = 'triangle'; osc.frequency.setValueAtTime(150, now);
+                        osc.frequency.linearRampToValueAtTime(300, now + 0.15);
+                        gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                        osc.start(now); osc.stop(now + 0.15);
+                    } else if(type === 'dig') {
+                        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(80, now);
+                        gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                        osc.start(now); osc.stop(now + 0.1);
+                    } else if(type === 'harvest') {
+                        osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, now); // C5 node target
+                        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5 node target
+                        gain.gain.setValueAtTime(0.15, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                        osc.start(now); osc.stop(now + 0.2);
+                    } else if(type === 'coin') {
+                        osc.type = 'sine'; osc.frequency.setValueAtTime(987.77, now); // B5 note
+                        osc.frequency.setValueAtTime(1318.51, now + 0.06); // E6 note
+                        gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                        osc.start(now); osc.stop(now + 0.25);
+                    }
+                } catch(e) { console.warn("Audio processing skip layout exception caught", e); }
+            }
+        };
+
+        // --- GLOBAL ROOT STATE ARRAYS STORAGE CONTAINER ---
+        const Game = {
+            State: {
+                player: {
+                    name: "สมชาย ใจดี", gender: "boy", level: 1, xp: 0, coins: 200, shopLevel: 1,
+                    inventory: {
+                        'tool_dig': 1, 'tool_water': 1, 'medicine_generic': 2,
+                        'seed_rambutan': 3, 'seed_mangosteen': 2, 'seed_durian': 1,
+                        'crop_rambutan': 0, 'crop_mangosteen': 0, 'crop_durian': 0
+                    },
+                    activeHotbarIdx: 0
+                },
+                plots: [], quests: [],
+                environment: { time: 480, weather: 'Sunny', rotationSpeed: 0.08 }
+            },
+            Engine: {}, Entities: {}, Input: {}, Systems: {}, UI: {}, Data: {}
+        };
+
+        // --- ENGINE STORAGE REPOSITORY MANAGER DATA LAYER ---
+        Game.Data = {
+            saveKey: "PHONDEE_FARM_3D_SAVE_2026",
+            save() {
+                localStorage.setItem(this.saveKey, JSON.stringify(Game.State.player));
+            },
+            load() {
+                const cache = localStorage.getItem(this.saveKey);
+                if(cache) {
+                    try {
+                        const parsed = JSON.parse(cache);
+                        if(parsed && typeof parsed === 'object') {
+                            Game.State.player = { ...Game.State.player, ...parsed };
+                        }
+                    } catch(e) { console.error("Cache parsing mismatch profiles execution", e); }
+                }
+            }
+        };
+
+        // --- CORE GRAPHICS ENGINE INITIALIZATION MODULE ---
+        Game.Engine = {
+            scene: null, camera: null, renderer: null, clock: null,
+            sunLight: null, ambientLight: null,
+            interactiveMeshes: [], sceneDynamicObjects: [],
+            raycaster: new THREE.Raycaster(), pointerCenter: new THREE.Vector2(0, 0),
+
+            init() {
+                const mount = document.getElementById('canvas-target');
+                
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x7ac1eb);
+                this.scene.fog = new THREE.FogExp2(0x7ac1eb, 0.012);
+
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+                
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.0;
+                mount.appendChild(this.renderer.domElement);
+
+                this.clock = new THREE.Clock();
+
+                // Setup Environment Lighting Matrix Configuration
+                this.ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+                this.scene.add(this.ambientLight);
+
+                this.sunLight = new THREE.DirectionalLight(0xfffaed, 1.2);
+                this.sunLight.position.set(30, 60, 20);
+                this.sunLight.castShadow = true;
+                this.sunLight.shadow.mapSize.width = 1024;
+                this.sunLight.shadow.mapSize.height = 1024;
+                this.sunLight.shadow.camera.near = 0.5;
+                this.sunLight.shadow.camera.far = 200;
+                const d = 40;
+                this.sunLight.shadow.camera.left = -d; this.sunLight.shadow.camera.right = d;
+                this.sunLight.shadow.camera.top = d; this.sunLight.shadow.camera.bottom = -d;
+                this.sunLight.shadow.bias = -0.0006;
+                this.scene.add(this.sunLight);
+
+                // Build Procedural Low Poly Landscape Terrains
+                this.generateLandscapeBaseGrid();
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                // Attach direct click raycaster processing loops targets boundaries validation
+                window.addEventListener('pointerdown', (e) => {
+                    if(Game.UI.modalOpen || e.target.tagName === 'BUTTON' || e.target.closest('.pointer')) return;
+                    this.executeTargetRaycastEvaluation();
+                });
+            },
+
+            generateLandscapeBaseGrid() {
+                // Generate primary standard floor terrain mesh geometry blocks
+                const terrainGeo = new THREE.PlaneGeometry(200, 200, 24, 24);
+                terrainGeo.rotateX(-Math.PI / 2);
+                
+                const pos = terrainGeo.attributes.position;
+                for(let i=0; i<pos.count; i++) {
+                    let x = pos.getX(i);
+                    let z = pos.getZ(i);
+                    if(Math.abs(x) > 18 || Math.abs(z) > 18) {
+                        // Deform outer terrain perimeter points to shape backdrop hills vectors
+                        pos.setY(i, Math.sin(x * 0.08) * Math.cos(z * 0.08) * 3.5 - 0.5);
+                    }
+                }
+                terrainGeo.computeVertexNormals();
+
+                const terrainMat = new THREE.MeshStandardMaterial({ color: 0x55a630, roughness: 0.9, flatShading: true });
+                const baseTerrain = new THREE.Mesh(terrainGeo, terrainMat);
+                baseTerrain.receiveShadow = true;
+                this.scene.add(baseTerrain);
+
+                // Form background scenario props items arrays
+                for(let i=0; i<40; i++) {
+                    const tree = Game.Entities.createSceneryTreeMesh();
+                    let rx = (Math.random() - 0.5) * 160;
+                    let rz = (Math.random() - 0.5) * 160;
+                    if(Math.abs(rx) < 20 && Math.abs(rz) < 20) { rx += 30 * Math.sign(rx || 1); rz += 30 * Math.sign(rz || 1); }
+                    tree.position.set(rx, 0, rz);
+                    this.scene.add(tree);
+                }
+
+                // Inject central decorative pond structure representation
+                const pondGeo = new THREE.CylinderGeometry(4, 4, 0.2, 8);
+                const pondMat = new THREE.MeshStandardMaterial({color: 0x0077b6, roughness: 0.2, metalness: 0.8});
+                const pond = new THREE.Mesh(pondGeo, pondMat);
+                pond.position.set(15, 0.02, -15);
+                this.scene.add(pond);
+            },
+
+            executeTargetRaycastEvaluation() {
+                this.raycaster.setFromCamera(this.pointerCenter, this.camera);
+                const intersections = this.raycaster.intersectObjects(this.interactiveMeshes);
+
+                if(intersections.length > 0) {
+                    const hitObj = intersections[0].object;
+                    const range = Game.Engine.Controller.playerMesh.position.distanceTo(hitObj.position);
+                    
+                    if(range > 8.0) {
+                        Game.UI.triggerNotificationToast("ระยะห่างไกลเกินไป! เดินเข้าไปใกล้แปลงดินอีกนิด", "error");
+                        return;
+                    }
+
+                    if(hitObj.userData && hitObj.userData.type === 'plot') {
+                        Game.Systems.Farming.processPlotInteractionAction(hitObj.userData, hitObj);
+                    } else if(hitObj.userData && hitObj.userData.type === 'npc') {
+                        Game.UI.openMerchantTradingWindow();
+                    }
+                }
+            }
+        };
+
+        // --- PROCEDURAL ENGINE 3D GEOMETRY MODEL GENERATOR MODULE ---
+        Game.Entities = {
+            createSceneryTreeMesh() {
+                const grp = new THREE.Group();
+                const log = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 2, 5), new THREE.MeshStandardMaterial({color: 0x7f5539, flatShading:true}));
+                log.position.y = 1; log.castShadow = true; grp.add(log);
+                const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3, 5), new THREE.MeshStandardMaterial({color: 0x38b000, flatShading:true}));
+                leaves.position.y = 3; leaves.castShadow = true; grp.add(leaves);
+                grp.scale.setScalar(0.7 + Math.random() * 0.5);
+                return grp;
+            },
+
+            createPlayerModelAvatarMesh(gender = 'boy') {
+                const grp = new THREE.Group();
+                // Character base legs
+                const legMat = new THREE.MeshStandardMaterial({color: 0x212529, flatShading:true});
+                const l1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.2), legMat); l1.position.set(-0.25, 0.3, 0); l1.castShadow = true; grp.add(l1);
+                const l2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.2), legMat); l2.position.set(0.25, 0.3, 0); l2.castShadow = true; grp.add(l2);
+                
+                // Torso chest block element
+                const bodyColor = gender === 'boy' ? 0x023e8a : 0xd90429;
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.4), new THREE.MeshStandardMaterial({color: bodyColor, flatShading:true}));
+                torso.position.y = 1.0; torso.castShadow = true; grp.add(torso);
+                
+                // Character head sphere representation
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({color: 0xffdbac, flatShading:true}));
+                head.position.y = 1.65; head.castShadow = true; grp.add(head);
+
+                // Add traditional stylized structural sun straw hat primitive geometry
+                const hat = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.3, 6), new THREE.MeshStandardMaterial({color: 0xddb892, flatShading:true}));
+                hat.position.y = 1.95; hat.castShadow = true; grp.add(hat);
+
+                return grp;
+            },
+
+            createNPCMerchantModelMesh() {
+                const grp = new THREE.Group();
+                const gown = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 1.6, 6), new THREE.MeshStandardMaterial({color: 0x14213d, flatShading:true}));
+                gown.position.y = 0.8; gown.castShadow = true; grp.add(gown);
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({color: 0xffdbac, flatShading:true}));
+                head.position.y = 1.7; head.castShadow = true; grp.add(head);
+                const turban = new THREE.Mesh(new THREE.SphereGeometry(0.32, 5, 5), new THREE.MeshStandardMaterial({color: 0xf59e0b, flatShading:true}));
+                turban.position.y = 2.0; grp.add(turban);
+                return grp;
+            },
+
+            createCropVisualStageGeometry(type, stage, hasDisease = false) {
+                const grp = new THREE.Group();
+                const spec = FRUIT_SPECS[type] || FRUIT_SPECS.rambutan;
+                
+                // Determine core plant base leaf material coloring based on disease infection status maps
+                const plantLeafHueColor = hasDisease ? 0x9a7b56 : 0x2d6a4f; // Sick brown vs healthy vibrant forest green
+                const foliageMat = new THREE.MeshStandardMaterial({ color: plantLeafHueColor, flatShading: true, roughness: 0.9 });
+                
+                if(stage === 1) {
+                    // STAGE 1: SEED MOUND LAYER
+                    const pile = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.12, 4), new THREE.MeshStandardMaterial({color: 0x4a3728, flatShading:true}));
+                    grp.add(pile);
+                } 
+                else if (stage === 2) {
+                    // STAGE 2: EMERGING REGENERATIVE SPROUT NODE
+                    const sprout = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.25, 4), new THREE.MeshStandardMaterial({color: 0x74c69d, flatShading:true}));
+                    sprout.position.y = 0.12; sprout.rotation.z = 0.15;
+                    grp.add(sprout);
+                } 
+                else if (stage === 3) {
+                    // STAGE 3: YOUNG MATURING TREE BASE STEM
+                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.6, 4), new THREE.MeshStandardMaterial({color: 0x6f4e37, flatShading:true}));
+                    stem.position.y = 0.3; grp.add(stem);
+                    const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.25, 0), foliageMat);
+                    bush.position.y = 0.6; grp.add(bush);
+                } 
+                else if (stage === 4) {
+                    // STAGE 4: ADVANCED STRUCTURAL GROWING TREE
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 1.2, 5), new THREE.MeshStandardMaterial({color: 0x6f4e37, flatShading:true}));
+                    trunk.position.y = 0.6; grp.add(trunk);
+                    const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 1), foliageMat);
+                    crown.position.y = 1.3; crown.castShadow = true; grp.add(crown);
+                } 
+                else {
+                    // STAGE 5: FRUIT-BEARING HARVEST MATURE ADULT STRUCTURE
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 1.4, 5), new THREE.MeshStandardMaterial({color: 0x6f4e37, flatShading:true}));
+                    trunk.position.y = 0.7; grp.add(trunk);
+                    const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.65, 1), foliageMat);
+                    crown.position.y = 1.6; crown.castShadow = true; grp.add(crown);
+
+                    // Add custom shape configurations parsing match conditions to build high-fidelity Thai low poly fruits representation
+                    const fruitMat = new THREE.MeshStandardMaterial({ color: spec.color, flatShading: true, roughness: 0.6 });
+                    
+                    if(spec.modelStyle === 'bush') { // Rambutan clusters layout maps configuration
+                        for(let i=0; i<4; i++) {
+                            const item = new THREE.Mesh(new THREE.SphereGeometry(0.12, 5, 5), fruitMat);
+                            item.position.set(Math.sin(i*1.5)*0.5, 1.4 + (i*0.1), Math.cos(i*1.5)*0.5);
+                            item.castShadow = true; grp.add(item);
+                        }
+                    } 
+                    else if(spec.modelStyle === 'spikyTree') { // Thorny spike patterns for Durian assembly
+                        for(let i=0; i<2; i++) {
+                            const dNode = new THREE.Group();
+                            const core = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), fruitMat);
+                            core.scale.set(1, 1.3, 1); core.castShadow = true; dNode.add(core);
+                            dNode.position.set(Math.sin(i*3.1)*0.45, 1.2, Math.cos(i*3.1)*0.45);
+                            grp.add(dNode);
+                        }
+                    } 
+                    else { // Smooth purple globes structural calyx for Mangosteen mapping
+                        for(let i=0; i<3; i++) {
+                            const mNode = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 6), fruitMat);
+                            mNode.position.set(Math.sin(i*2.0)*0.48, 1.3, Math.cos(i*2.0)*0.48);
+                            mNode.castShadow = true; grp.add(mNode);
+                        }
+                    }
+                }
+
+                // Add an animated floating disease warning billboard icon if active infection flags true
+                if(hasDisease) {
+                    const alertGeo = new THREE.BoxGeometry(0.2, 0.5, 0.2);
+                    const alertMat = new THREE.MeshBasicMaterial({color: 0xe63946});
+                    const alertMesh = new THREE.Mesh(alertGeo, alertMat);
+                    alertMesh.position.y = stage >= 4 ? 2.6 : 1.2;
+                    Game.Engine.sceneDynamicObjects.push({
+                        mesh: alertMesh, tick: (t) => { alertMesh.position.y += Math.sin(t * 6) * 0.005; alertMesh.rotation.y += 0.05; }
+                    });
+                    grp.add(alertMesh);
+                }
+
+                return grp;
+            }
+        }
+
+        // --- USER SYSTEM CONTROLS AND NAVIGATION SCHEMAS LAYER (INPUT CONTROLLER) ---
+        Game.Input = {
+            keys: {}, moveVector: new THREE.Vector2(0,0),
+            joystickActive: false, joyStartPos: new THREE.Vector2(0,0),
+
+            init() {
+                // Desktop Input Key Bindings
+                window.addEventListener('keydown', (e) => {
+                    const k = e.key.toLowerCase(); this.keys[k] = true;
+                    if(k === 'i') Game.UI.toggleModalView();
+                });
+                window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
+
+                // Automatic context initialization trigger maps validation for cross-platform mobile devices touch tracking layers
+                if('ontouchstart' in window) {
+                    this.setupMobileTouchUIJoystickControl();
+                }
+            },
+
+            setupMobileTouchUIJoystickControl() {
+                const zone = document.getElementById('joystick-zone');
+                const knob = document.getElementById('joystick-knob');
+                zone.style.display = 'block'; // Make element visible on touch configurations natively
+
+                window.addEventListener('touchstart', (e) => {
+                    const touch = e.touches[0];
+                    // Evaluate if bounds intercept the screen left sector grid mapping matrix layout regions
+                    if(touch.clientX < window.innerWidth / 2 && touch.clientY > window.innerHeight / 2) {
+                        this.joystickActive = true;
+                        this.joyStartPos.set(touch.clientX, touch.clientY);
+                        zone.style.left = `${touch.clientX - 60}px`;
+                        zone.style.top = `${touch.clientY - 60}px`;
+                        knob.style.transform = 'translate(0px, 0px)';
+                    }
+                }, { passive: true });
+
+                window.addEventListener('touchmove', (e) => {
+                    if(!this.joystickActive) return;
+                    const touch = e.touches[0];
+                    const dirX = touch.clientX - this.joyStartPos.x;
+                    const dirY = touch.clientY - this.joyStartPos.y;
+                    const distance = Math.min(45, Math.hypot(dirX, dirY));
+                    
+                    const angle = Math.atan2(dirY, dirX);
+                    const knX = distance * Math.cos(angle);
+                    const knY = distance * Math.sin(angle);
+                    
+                    knob.style.transform = `translate(${knX}px, ${knY}px)`;
+                    
+                    // Normalize standard internal steering direction vectors arrays fields data models
+                    this.moveVector.set(knX / 45, -knY / 45);
+                }, { passive: true });
+
+                window.addEventListener('touchend', () => {
+                    this.joystickActive = false;
+                    this.moveVector.set(0, 0);
+                    // Reset to initial static corner zones defaults positions
+                    zone.style.left = '40px'; zone.style.top = ''; zone.style.bottom = '40px';
+                    knob.style.transform = 'translate(0px, 0px)';
+                });
+            }
+        };
+
+        // --- CONTROLLER CHARACTER MOVEMENT PIPELINE MANAGEMENT MAP ---
+        Game.Engine.Controller = {
+            playerMesh: null, velocity: new THREE.Vector3(),
+            yawAngleX: 0.8, pitchAngleY: 0.6, targetOrbitDist: 9.0,
+
+            init() {
+                // Populate Character Entity Mesh Instance Context Model Node
+                this.playerMesh = Game.Entities.createPlayerModelAvatarMesh(Game.State.player.gender);
+                this.playerMesh.position.set(0, 0, 5);
+                Game.Engine.scene.add(this.playerMesh);
+
+                // Populate Town Merchant Supplier NPC Entity Item Grid Node Placement Array Coordinates Maps
+                this.setupTownMerchantNPCEntity();
+
+                // Setup Core Soil Agriculture Farmland Grid array matrices structures templates layout map rules
+                this.setupFarmlandPlotsCompoundGrid();
+
+                // Initialize camera alignment default positions sets vectors metrics references nodes bounding parameters
+                this.syncCameraPositionLoop(0.016);
+            },
+
+            setupTownMerchantNPCEntity() {
+                const npc = Game.Entities.createNPCMerchantModelMesh();
+                npc.position.set(-6, 0, -5); npc.rotation.y = Math.PI / 3;
+                Game.Engine.scene.add(npc);
+
+                // Wrap clear target interactive bounding volume mesh container for smooth precision mobile rays intersection checks 
+                const triggerBox = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.5, 2.2), new THREE.MeshBasicMaterial({visible: false}));
+                triggerBox.position.copy(npc.position); triggerBox.position.y = 1.2;
+                triggerBox.userData = { type: 'npc' };
+                Game.Engine.scene.add(triggerBox);
+                Game.Engine.interactiveMeshes.push(triggerBox);
+            },
+
+            setupFarmlandPlotsCompoundGrid() {
+                const cols = 3; const spacingX = 2.8; const spacingZ = 2.8;
+                
+                for(let i = 0; i < 9; i++) {
+                    const rowIdx = Math.floor(i / cols);
+                    const colIdx = i % cols;
+                    
+                    const xPos = (colIdx - (cols - 1)/2) * spacingX;
+                    const zPos = (rowIdx - (cols - 1)/2) * spacingZ + 2.0;
+
+                    const plotGeo = new THREE.BoxGeometry(2.0, 0.12, 2.0);
+                    const plotMat = new THREE.MeshStandardMaterial({color: 0x5c4033, roughness: 1.0, flatShading:true});
+                    const plotMesh = new THREE.Mesh(plotGeo, plotMat);
+                    plotMesh.position.set(xPos, 0.01, zPos);
+                    plotMesh.receiveShadow = true;
+
+                    // Hydrate essential tracking lifecycle object fields schema directly to reference instance context maps 
+                    plotMesh.userData = {
+                        type: 'plot', id: i, isDug: false, cropType: null,
+                        growthStage: 0, growthProgress: 0.0, isWatered: false,
+                        diseaseId: null, isFertilized: false, modelRef: null
+                    };
+
+                    Game.Engine.scene.add(plotMesh);
+                    Game.Engine.interactiveMeshes.push(plotMesh);
+                    Game.State.plots.push(plotMesh.userData);
+                }
+            },
+
+            updateTickPhysicsFrame(delta) {
+                let dx = 0; let dz = 0;
+                
+                // Desktop Input Vector Translation Mapping Rules Evaluation
+                if(Game.Input.keys['w'] || Game.Input.keys['arrowup']) dz -= 1;
+                if(Game.Input.keys['s'] || Game.Input.keys['arrowdown']) dz += 1;
+                if(Game.Input.keys['a'] || Game.Input.keys['arrowleft']) dx -= 1;
+                if(Game.Input.keys['d'] || Game.Input.keys['arrowright']) dx += 1;
+
+                // Handle composite overlay blending with Touch Vectors if available natively
+                if(Game.Input.joystickActive) {
+                    dx = Game.Input.moveVector.x;
+                    dz = -Game.Input.moveVector.y;
+                }
+
+                const isSprinting = Game.Input.keys['shift'];
+                const speedMult = isSprinting ? 9.0 : 4.5;
+
+                if(dx !== 0 || dz !== 0) {
+                    // Normalize direct input vectors across global viewport tracking camera angles coordinates matrices translations
+                    const cameraAngleY = Math.atan2(
+                        this.playerMesh.position.x - Game.Engine.camera.position.x,
+                        this.playerMesh.position.z - Game.Engine.camera.position.z
+                    );
+                    const direction = new THREE.Vector3(dx, 0, dz).normalize();
+                    direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraAngleY);
+
+                    this.velocity.x = direction.x * speedMult;
+                    this.velocity.z = direction.z * speedMult;
+
+                    // Interpolate avatar heading orientation towards movement trajectory angles
+                    const targetAngle = Math.atan2(direction.x, direction.z);
+                    let deltaAngle = targetAngle - this.playerMesh.rotation.y;
+                    while(deltaAngle < -Math.PI) deltaAngle += Math.PI * 2;
+                    while(deltaAngle > Math.PI) deltaAngle -= Math.PI * 2;
+                    this.playerMesh.rotation.y += deltaAngle * 0.2;
+
+                    // Add simple algorithmic procedural walk bob animation loops tracking scales nodes shifts
+                    this.playerMesh.position.y = Math.abs(Math.sin(Game.Engine.clock.getElapsedTime() * (isSprinting ? 14 : 9))) * 0.12;
+                } else {
+                    this.velocity.set(0, 0, 0);
+                    this.playerMesh.position.y = 0;
+                }
+
+                // Append speed computations parameters onto physical translation points coordinates values fields
+                this.playerMesh.position.x += this.velocity.x * delta;
+                this.playerMesh.position.z += this.velocity.z * delta;
+
+                // Restrict boundaries mapping constraints rules sets to clear map edge drop falls zones regions
+                this.playerMesh.position.x = Math.max(-90, Math.min(90, this.playerMesh.position.x));
+                this.playerMesh.position.z = Math.max(-90, Math.min(90, this.playerMesh.position.z));
+
+                this.syncCameraPositionLoop(delta);
+                this.evaluateActiveCrosshairIntersectionsHUD();
+            },
+
+            syncCameraPositionLoop(delta) {
+                // Calculate dynamic tracking orbital offset boundaries mappings nodes calculations positions updates
+                const lookTargetPos = this.playerMesh.position.clone().add(new THREE.Vector3(0, 1.0, 0));
+                
+                const cX = this.playerMesh.position.x + this.targetOrbitDist * Math.sin(this.yawAngleX) * Math.cos(this.pitchAngleY);
+                const cY = this.playerMesh.position.y + this.targetOrbitDist * Math.sin(this.pitchAngleY) + 1.2;
+                const cZ = this.playerMesh.position.z + this.targetOrbitDist * Math.cos(this.yawAngleX) * Math.cos(this.pitchAngleY);
+
+                Game.Engine.camera.position.lerp(new THREE.Vector3(cX, cY, cZ), 0.12);
+                Game.Engine.camera.lookAt(lookTargetPos);
+            },
+
+            evaluateActiveCrosshairIntersectionsHUD() {
+                Game.Engine.raycaster.setFromCamera(Game.Engine.pointerCenter, Game.Engine.camera);
+                const intersects = Game.Engine.raycaster.intersectObjects(Game.Engine.interactiveMeshes);
+                
+                const elementPrompt = document.getElementById('hud-prompt-action');
+                const elementText = document.getElementById('hud-prompt-text');
+
+                if(intersects.length > 0 && this.playerMesh.position.distanceTo(intersects[0].object.position) <= 8.0) {
+                    elementPrompt.classList.remove('hidden');
+                    const itemData = intersects[0].object.userData;
+                    
+                    if(itemData.type === 'npc') {
+                        elementText.innerText = "คุยกับ ลุงสมดี (ร้านค้า)";
+                    } else if(itemData.type === 'plot') {
+                        if(!itemData.isDug) {
+                            elementText.innerText = "ใช้จอบขุดพรวนดิน [ขุด]";
+                        } else if(!itemData.cropType) {
+                            elementText.innerText = "เลือกเมล็ดจากแถบเครื่องมือเพื่อ [ปลูก]";
+                        } else if(itemData.diseaseId) {
+                            elementText.innerText = `⚠️ พืชเป็น: ${DISEASE_SPECS[itemData.cropType]?.name} [คลิกเพื่อรักษา]`;
+                        } else if(itemData.growthStage === 5) {
+                            elementText.innerText = `เก็บเกี่ยวผลผลิต ${FRUIT_SPECS[itemData.cropType]?.name} [เก็บ]`;
+                        } else {
+                            elementText.innerText = `รดน้ำต้นไม้ (${FRUIT_SPECS[itemData.cropType]?.name} ขั้น ${itemData.growthStage}/5)`;
+                        }
+                    }
+                } else {
+                    elementPrompt.classList.add('hidden');
+                }
+            }
+        };
+
+        // --- CORE LOGICAL SIMULATION AGRICULTURE MECHANICS SUBSYSTEM ENGINE ---
+        Game.Systems.Farming = {
+            processPlotInteractionAction(data, meshObj) {
+                const inventoryKeysList = Object.keys(Game.State.player.inventory);
+                const activeHotbarKey = inventoryKeysList[Game.State.player.activeHotbarIdx];
+                const activeStoreTierConfig = SHOP_TIERS[Game.State.player.shopLevel - 1];
+
+                // SCENARIO 1: SOIL IS RAW -> DIG WITH HOE TOOL REQUIRED
+                if(!data.isDug) {
+                    if(activeHotbarKey === 'tool_dig') {
+                        data.isDug = true;
+                        meshObj.material.color.setHex(0x4a3728); // Update color to dark plowed soil texture hue
+                        GameSound.play('dig');
+                        Game.UI.triggerNotificationToast("ขุดพรวนดินเสร็จสิ้น แปลงพร้อมสำหรับการเพาะปลูกแล้ว!", "success");
+                        Game.State.player.xp += 5; Game.Systems.Quests.evaluateTriggerTrackingUpdate('dig', 'soil', 1);
+                        this.refreshGlobalDependenciesState();
+                    } else {
+                        Game.UI.triggerNotificationToast("กรุณาเลือกสลับไปใช้งาน [จอบขุดดิน] บนแถบเครื่องมือก่อน", "notice");
+                    }
+                    return;
+                }
+
+                // SCENARIO 2: LAND PLOWED BUT EMPTY -> PLANT FRUIT SEED SPEC PACKAGE
+                if(!data.cropType) {
+                    if(activeHotbarKey && activeHotbarKey.startsWith('seed_')) {
+                        const targetFruitId = activeHotbarKey.replace('seed_', '');
+                        if(Game.State.player.inventory[activeHotbarKey] > 0) {
+                            Game.State.player.inventory[activeHotbarKey]--;
+                            
+                            data.cropType = targetFruitId;
+                            data.growthStage = 1;
+                            data.growthProgress = 0.0;
+                            data.isWatered = false;
+                            data.diseaseId = null;
+
+                            this.rebuildPlantModelMeshNodeHierarchy(data, meshObj);
+                            GameSound.play('click');
+                            Game.UI.triggerNotificationToast(`ปลูกเมล็ดพันธุ์ ${FRUIT_SPECS[targetFruitId].name} เรียบร้อย!`, "success");
+                            Game.Systems.Quests.evaluateTriggerTrackingUpdate('plant', targetFruitId, 1);
+                            this.refreshGlobalDependenciesState();
+                        }
+                    } else {
+                        Game.UI.triggerNotificationToast("หยิบ [เมล็ดพันธุ์ผลไม้] จากแถบเครื่องมือลงมาปลูกในแปลงนี้", "notice");
+                    }
+                    return;
+                }
+
+                // SCENARIO 3: ACTIVE INFECTIOUS DISEASE FLAGGED -> DISPLAY DIAGNOSIS TREATMENT PROMPT
+                if(data.diseaseId) {
+                    // Open modal and switch to education/treatment pane directly
+                    Game.UI.openDiseaseEducationalDiagnosticPane(data.cropType, data, meshObj);
+                    return;
+                }
+
+                // SCENARIO 4: MATURED FRUITS HARVEST TIME -> COLLECT ASSET AND EARN BANKING CREDITS
+                if(data.growthStage === 5) {
+                    const yieldCropStorageKey = `crop_${data.cropType}`;
+                    Game.State.player.inventory[yieldCropStorageKey] = (Game.State.player.inventory[yieldCropStorageKey] || 0) + 1;
+                    
+                    const earnedXPAmountPoints = FRUIT_SPECS[data.cropType].xp;
+                    Game.State.player.xp += earnedXPAmountPoints;
+                    
+                    GameSound.play('harvest');
+                    Game.UI.triggerNotificationToast(`เก็บเกี่ยวผลผลิต ${FRUIT_SPECS[data.cropType].name}! (+${earnedXPAmountPoints} XP)`, "success");
+                    Game.Systems.Quests.evaluateTriggerTrackingUpdate('harvest', data.cropType, 1);
+                    
+                    // Reset fields tracking data clean values loops properties
+                    if(data.modelRef) meshObj.remove(data.modelRef);
+                    data.cropType = null; data.growthStage = 0; data.growthProgress = 0.0; data.isWatered = false;
+                    meshObj.material.color.setHex(0x5c4033); // Revert to dry plowed earth hue
+
+                    this.refreshGlobalDependenciesState();
+                    return;
+                }
+
+                // SCENARIO 5: STANDARD GROWTH MAINTENANCE CYCLE -> APPLY HYDRATION WATERING CAN CANISTER
+                if(activeHotbarKey === 'tool_water') {
+                    if(!data.isWatered) {
+                        data.isWatered = true;
+                        meshObj.material.color.setHex(0x271911); // Saturation soil visual effect mapping color change
+                        GameSound.play('water');
+                        Game.UI.triggerNotificationToast("รดน้ำบำรุงดินฉีดชื้นเสร็จสิ้น อัตราเติบโตเพิ่มขึ้น!", "success");
+                        Game.State.player.xp += 2;
+                        
+                        if(data.modelRef) {
+                            gsap.to(data.modelRef.scale, {y: 1.2, duration: 0.15, yoyo: true, repeat: 1});
+                        }
+                        this.refreshGlobalDependenciesState();
+                    } else {
+                        Game.UI.triggerNotificationToast("แปลงดินมีความชื้นอุ้มน้ำเพียงพอแล้ว ไม่ควรรดน้ำซ้ำจนดินแฉะ", "notice");
+                    }
+                } else {
+                    Game.UI.triggerNotificationToast("ใช้ [บัวรดน้ำ] รดเพิ่มความชื้น หรือรอจนต้นไม้โตเต็มวัยเพื่อเก็บเกี่ยว", "notice");
+                }
+            },
+
+            rebuildPlantModelMeshNodeHierarchy(data, parentMesh) {
+                if(data.modelRef) parentMesh.remove(data.modelRef);
+                if(!data.cropType) return;
+
+                const hasDiseaseActiveFlag = data.diseaseId !== null;
+                const elementMeshGroupNode = Game.Entities.createCropVisualStageGeometry(data.cropType, data.growthStage, hasDiseaseActiveFlag);
+                elementMeshGroupNode.position.y = 0.06;
+                parentMesh.add(elementMeshGroupNode);
+                data.modelRef = elementMeshGroupNode;
+
+                elementMeshGroupNode.scale.set(0, 0, 0);
+                gsap.to(elementMeshGroupNode.scale, {x: 1, y: 1, z: 1, duration: 0.35, ease: "back.out(1.5)"});
+            },
+
+            executeContinuousGrowthTickCalculation(delta) {
+                const storeUpgradeConfig = SHOP_TIERS[Game.State.player.shopLevel - 1];
+                
+                Game.State.plots.forEach((plot) => {
+                    // Growth process locks entirely if disease occurs or index matches empty references sets values
+                    if(plot.cropType && plot.growthStage < 5 && !plot.diseaseId) {
+                        const baseConfigSpec = FRUIT_SPECS[plot.cropType];
+                        // Watered plants grow significantly faster
+                        const environmentalHydrationBoostSpeedFactor = plot.isWatered ? 1.4 : 0.4;
+                        const finalCompositeGrowthIncrementValue = (delta / baseConfigSpec.growthTime) * environmentalHydrationBoostSpeedFactor * storeUpgradeConfig.speedMult;
+                        
+                        plot.growthProgress += finalCompositeGrowthIncrementValue;
+                        const evaluatedCalculatedStageValue = Math.min(5, Math.floor(plot.growthProgress * 4) + 1);
+                        
+                        if(evaluatedCalculatedStageValue !== plot.growthStage) {
+                            plot.growthStage = evaluatedCalculatedStageValue;
+                            
+                            // Random Disease Outbreak Check upon entering new structural leaf development cycles
+                            if(plot.growthStage === 3 || plot.growthStage === 4) {
+                                if(Math.random() < 0.22) { // 22% disease occurrence evaluation rate
+                                    plot.diseaseId = DISEASE_SPECS[plot.cropType].id;
+                                    Game.UI.triggerNotificationToast(`⚠️ เตือนภัย! ตรวจพบสัญญานโรคระบาดพืชบนฟาร์มของคุณ ตรวจสอบด่วน`, "error");
+                                }
+                            }
+
+                            const referenceParentMeshObject = Game.Engine.interactiveMeshes.find(m => m.userData && m.userData.id === plot.id);
+                            if(referenceParentMeshObject) {
+                                this.rebuildPlantModelMeshNodeHierarchy(plot, referenceParentMeshObject);
+                            }
+                        }
+                    }
+                });
+            },
+
+            refreshGlobalDependenciesState() {
+                Game.Systems.Progression.evaluateCurrentXPLevelBoundaries();
+                Game.UI.refreshHUDDisplays();
+                Game.Data.save();
+            }
+        };
+
+        // --- TRACKING LEVEL PROGRESSION SYSTEM DATA MATRIX ---
+        Game.Systems.Progression = {
+            evaluateCurrentXPLevelBoundaries() {
+                const xpThresholdCapValue = Game.State.player.level * 120;
+                if(Game.State.player.xp >= xpThresholdCapValue) {
+                    Game.State.player.level++;
+                    Game.UI.triggerNotificationToast(`🎉 ยินดีด้วย! ระดับเลเวลฟาร์มเพิ่มขึ้นเป็น เลเวล ${Game.State.player.level} 🎉`, "success");
+                    Game.Systems.Quests.evaluateTriggerTrackingUpdate('level', 'rank', Game.State.player.level);
+                }
+            }
+        };
+
+        // --- COMPREHENSIVE REGENERATIVE QUESTS EMPOWERMENT BLUEPRINTS ---
+        Game.Systems.Quests = {
+            verifyIntegrityPopulationArray() {
+                if(Game.State.quests.length > 0) return;
+                
+                // Repopulate a fresh localized educational quest package array sequence structure
+                Game.State.quests = [
+                    { id: 'q1', type: 'plant',   target: 'rambutan',   req: 3, cur: 0, rewardCoins: 120, desc: "ปลูกต้นเงาะเศรษฐกิจ 3 ต้นในฟาร์ม", claimed: false },
+                    { id: 'q2', type: 'harvest', target: 'durian',     req: 1, cur: 0, rewardCoins: 250, desc: "เก็บเกี่ยวทุเรียนหมอนทองราชาผลไม้ 1 ผล", claimed: false },
+                    { id: 'q3', type: 'cure',    target: 'any',        req: 1, cur: 0, rewardCoins: 150, desc: "บำบัดรักษาพืชเป็นโรคติดเชื้อ 1 ครั้ง", claimed: false }
+                ];
+            },
+
+            evaluateTriggerTrackingUpdate(type, target, increment) {
+                Game.State.quests.forEach(q => {
+                    if(!q.claimed && q.type === type && (q.target === target || q.target === 'any')) {
+                        q.cur = type === 'level' ? increment : q.cur + increment;
+                        if(q.cur >= q.req) {
+                            q.cur = q.req;
+                            this.dispatchQuestRewardPayout(q);
+                        }
+                    }
+                });
+                Game.UI.refreshHUDDisplays();
+            },
+
+            dispatchQuestRewardPayout(q) {
+                if(q.claimed) return; q.claimed = true;
+                Game.State.player.coins += q.rewardCoins;
+                GameSound.play('coin');
+                Game.UI.triggerNotificationToast(`ภารกิจสำเร็จ: [${q.desc}] รับรางวัล ${q.rewardCoins} 🪙`, "success");
+                
+                setTimeout(() => {
+                    Game.State.quests = Game.State.quests.filter(item => item.id !== q.id);
+                    this.verifyIntegrityPopulationArray();
+                    Game.UI.refreshHUDDisplays();
+                }, 3500);
+            }
+        };
+
+        // --- MODERN RESPONSIVE TAILWIND UI RENDERING DISPLAY ENGINE ---
+        Game.UI = {
+            modalOpen: false, currentActiveTabId: 'inventory',
+
+            init() {
+                this.instantiateHUDHotbarSlotsDOM();
+                this.refreshHUDDisplays();
+                Game.Systems.Quests.verifyIntegrityPopulationArray();
+            },
+
+            selectGenderCharacterSetup(genderId) {
+                GameSound.play('click');
+                Game.State.player.gender = genderId;
+                
+                const b = document.getElementById('char-opt-boy');
+                const g = document.getElementById('char-opt-girl');
+                
+                if(genderId === 'boy') {
+                    b.className = "border-2 border-emerald-500 bg-emerald-950/30 p-4 rounded-2xl cursor-pointer transition-all flex flex-col items-center";
+                    g.className = "border-2 border-slate-800 bg-slate-900/50 p-4 rounded-2xl cursor-pointer transition-all flex flex-col items-center";
+                } else {
+                    g.className = "border-2 border-emerald-500 bg-emerald-950/30 p-4 rounded-2xl cursor-pointer transition-all flex flex-col items-center";
+                    b.className = "border-2 border-slate-800 bg-slate-900/50 p-4 rounded-2xl cursor-pointer transition-all flex flex-col items-center";
+                }
+            },
+
+            commitInitializationConfig() {
+                const nameInp = document.getElementById('input-player-name').value.trim();
+                if(!nameInp) return alert("กรุณาระบุชื่อผู้เล่นก่อนเริ่มเกม!");
+                
+                GameSound.init();
+                GameSound.play('click');
+                
+                Game.State.player.name = nameInp;
+                
+                // Remove login intro page setup interface layers view state smooth fading 
+                gsap.to('#screen-character-select', {opacity: 0, duration: 0.4, onComplete: () => {
+                    document.getElementById('screen-character-select').style.display = 'none';
+                    document.querySelectorAll('.ready-hud').forEach(el => el.classList.remove('hidden'));
+                }});
+
+                // Build character components configurations models
+                Game.Engine.Controller.init();
+                this.refreshHUDDisplays();
+            },
+
+            instantiateHUDHotbarSlotsDOM() {
+                const container = document.getElementById('hud-hotbar');
+                container.innerHTML = '';
+                const sizeKeys = Object.keys(Game.State.player.inventory);
+                
+                for(let i=0; i<6; i++) { // Render 6 primary usable hotbar grid quick shortcuts
+                    const block = document.createElement('div');
+                    block.className = "w-12 h-12 rounded-xl bg-slate-900 border-2 border-slate-700 flex flex-col items-center justify-center relative cursor-pointer hover:border-amber-400 transition-all select-none";
+                    block.setAttribute('data-hotbar-slot-index', i);
+                    block.innerHTML = `
+                        <span class="text-xl cell-icon"></span>
+                        <span class="absolute bottom-0 right-1 text-[9px] font-bold text-slate-400 cell-qty"></span>
+                        <span class="absolute top-0.5 left-1 text-[8px] text-slate-600 font-mono">${i+1}</span>
+                    `;
+                    container.appendChild(block);
+                }
+            },
+
+            refreshHUDDisplays() {
+                // Map text strings numbers onto screen elements configurations nodes fields targets 
+                document.getElementById('hud-coins').innerText = Game.State.player.coins.toLocaleString();
+                document.getElementById('modal-coin-label').innerText = `${Game.State.player.coins.toLocaleString()} 🪙`;
+                document.getElementById('hud-level').innerText = Game.State.player.level;
+                document.getElementById('hud-player-name').innerText = Game.State.player.name;
+
+                const xpCapValue = Game.State.player.level * 120;
+                const xpPct = Math.min(100, (Game.State.player.xp / xpCapValue) * 100);
+                document.getElementById('hud-xp-bar').style.width = `${xpPct}%`;
+                document.getElementById('hud-xp-text').innerText = `${Game.State.player.xp}/${xpCapValue} XP`;
+
+                // Update Farm Game Time Display format
+                const tMin = Math.floor(Game.State.environment.time);
+                const formatHrs = Math.floor(tMin / 60).toString().padStart(2, '0');
+                const formatMins = Math.floor(tMin % 60).toString().padStart(2, '0');
+                document.getElementById('hud-clock').innerText = `${formatHrs}:${formatMins}`;
+
+                // Sync Hotbar Slots item inventory array structures loops
+                const hotbarDOMCells = document.querySelectorAll('#hud-hotbar > [data-hotbar-slot-index]');
+                const invItemKeysList = Object.keys(Game.State.player.inventory);
+
+                hotbarDOMCells.forEach((cell, idx) => {
+                    const key = invItemKeysList[idx];
+                    const count = Game.State.player.inventory[key] || 0;
+                    
+                    const elIcon = cell.querySelector('.cell-icon');
+                    const elQty = cell.querySelector('.cell-qty');
+
+                    if(idx === Game.State.player.activeHotbarIdx) {
+                        cell.className = "w-12 h-12 rounded-xl bg-slate-800 border-2 border-amber-400 flex flex-col items-center justify-center relative cursor-pointer scale-105 shadow-md";
+                        document.getElementById('hud-hotbar-label').innerText = key ? this.translateItemKeyToThaiLabelString(key) : "ว่าง";
+                    } else {
+                        cell.className = "w-12 h-12 rounded-xl bg-slate-900 border-2 border-slate-700 flex flex-col items-center justify-center relative cursor-pointer hover:border-slate-500";
+                    }
+
+                    if(key && count > 0) {
+                        elIcon.innerText = this.parseItemKeyToVisualEmojiSymbol(key);
+                        elQty.innerText = count;
+                    } else if (key && key.startsWith('tool_')) {
+                        elIcon.innerText = this.parseItemKeyToVisualEmojiSymbol(key);
+                        elQty.innerText = '∞'; // Tools are infinite use
+                    } else {
+                        elIcon.innerText = ''; elQty.innerText = '';
+                    }
+                });
+
+                // Update active quests tracker list panel view components
+                const questBox = document.getElementById('hud-quest-list');
+                questBox.innerHTML = '';
+                
+                if(Game.State.quests.length === 0) {
+                    questBox.innerHTML = `<div class="text-slate-500 italic text-center text-[11px] py-1">ไม่มีภารกิจค้างคา</div>`;
+                } else {
+                    Game.State.quests.forEach(q => {
+                        const row = document.createElement('div');
+                        row.className = "bg-slate-900/60 p-2 rounded-xl border border-slate-800/80";
+                        row.innerHTML = `
+                            <div class="flex justify-between font-medium text-slate-200 mb-1">
+                                <span class="truncate max-w-[170px]">${q.desc}</span>
+                                <span class="text-amber-400 font-bold">${q.cur}/${q.req}</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-1 rounded-full overflow-hidden">
+                                <div class="bg-amber-400 h-full" style="width: ${(q.cur/q.req)*100}%"></div>
+                            </div>
+                        `;
+                        questBox.appendChild(row);
+                    });
+                }
+            },
+
+            translateItemKeyToThaiLabelString(key) {
+                if(key === 'tool_dig') return "🛠️ จอบขุดพรวนดิน";
+                if(key === 'tool_water') return "🪣 บัวรดน้ำต้นไม้";
+                if(key === 'medicine_generic') return "💊ยารักษาโรคพืชทั่วไป";
+                if(key.startsWith('seed_')) return `🌱 เมล็ดพันธุ์${FRUIT_SPECS[key.replace('seed_','')].name}`;
+                if(key.startsWith('crop_')) return `📦 ผลผลิต${FRUIT_SPECS[key.replace('crop_','')].name}`;
+                return key;
+            },
+
+            parseItemKeyToVisualEmojiSymbol(key) {
+                if(key === 'tool_dig') return "⛏️";
+                if(key === 'tool_water') return "🪣";
+                if(key === 'medicine_generic') return "💊";
+                if(key.startsWith('seed_')) return "🌱";
+                if(key.startsWith('crop_')) return FRUIT_SPECS[key.replace('crop_','')].icon || "🍎";
+                return "📦";
+            },
+
+            toggleModalView() {
+                const box = document.getElementById('modal-container');
+                const card = document.getElementById('modal-card');
+                GameSound.play('click');
+
+                if(this.modalOpen) {
+                    gsap.to(card, {scale: 0.95, duration: 0.18});
+                    gsap.to(box, {opacity: 0, duration: 0.18, onComplete: () => {
+                        box.classList.add('hidden'); this.modalOpen = false;
+                    }});
+                } else {
+                    this.renderModalDynamicTabularPaneContents();
+                    box.classList.remove('hidden');
+                    gsap.to(box, {opacity: 1, duration: 0.2});
+                    gsap.to(card, {scale: 1, duration: 0.25, ease: "back.out(1.2)"});
+                    this.modalOpen = true;
+                }
+            },
+
+            switchTabWindowView(tabId) {
+                GameSound.play('click');
+                this.currentActiveTabId = tabId;
+                
+                const tabs = ['inventory', 'shop', 'edu'];
+                tabs.forEach(t => {
+                    const btn = document.getElementById(`tab-btn-${t}`);
+                    const pane = document.getElementById(`view-pane-${t}`);
+                    if(t === tabId) {
+                        btn.className = "text-emerald-400 border-b-2 border-emerald-400 font-bold text-sm pb-1 focus:outline-none";
+                        pane.classList.remove('hidden');
+                    } else {
+                        btn.className = "text-slate-400 hover:text-slate-200 font-semibold text-sm pb-1 focus:outline-none";
+                        pane.classList.add('hidden');
+                    }
+                });
+                this.renderModalDynamicTabularPaneContents();
+            },
+
+            openMerchantTradingWindow() {
+                if(!this.modalOpen) this.toggleModalView();
+                this.switchTabWindowView('shop');
+            },
+
+            openDiseaseEducationalDiagnosticPane(fruitId, plotData, meshObj) {
+                this.savedInfectionContextRef = { data: plotData, mesh: meshObj };
+                if(!this.modalOpen) this.toggleModalView();
+                this.switchTabWindowView('edu');
+                
+                // Smooth autoscroll down highlights target disease card structure
+                setTimeout(() => {
+                    const card = document.getElementById(`edu-card-${fruitId}`);
+                    if(card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 200);
+            },
+
+            renderModalDynamicTabularPaneContents() {
+                const storeTierConfig = SHOP_TIERS[Game.State.player.shopLevel - 1];
+                document.getElementById('shop-tier-label').innerText = storeTierConfig.name;
+
+                if(this.currentActiveTabId === 'inventory') {
+                    const box = document.getElementById('view-pane-inventory'); box.innerHTML = '';
+                    Object.keys(Game.State.player.inventory).forEach(key => {
+                        const qty = Game.State.player.inventory[key];
+                        if(qty > 0 || key.startsWith('tool_')) {
+                            const grid = document.createElement('div');
+                            grid.className = "bg-slate-950 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-center text-center shadow-inner";
+                            grid.innerHTML = `
+                                <div class="text-3xl mb-1">${this.parseItemKeyToVisualEmojiSymbol(key)}</div>
+                                <div class="text-[11px] font-bold text-slate-200 truncate w-full">${this.translateItemKeyToThaiLabelString(key)}</div>
+                                <div class="text-[10px] text-emerald-400 font-mono mt-1">จำนวน: ${key.startsWith('tool_') ? 'ไม่จำกัด' : qty}</div>
+                            `;
+                            box.appendChild(grid);
+                        }
+                    });
+                } 
+                else if(this.currentActiveTabId === 'shop') {
+                    // Populate Items Buy Lists rows arrays
+                    const buyRoot = document.getElementById('shop-buy-list'); buyRoot.innerHTML = '';
+                    
+                    // Render Seed purchase list items loops
+                    Object.keys(FRUIT_SPECS).forEach(key => {
+                        const spec = FRUIT_SPECS[key];
+                        const div = document.createElement('div');
+                        div.className = "bg-slate-950 border border-slate-850 p-2 rounded-xl flex justify-between items-center text-xs";
+                        div.innerHTML = `
+                            <div class="flex items-center gap-2"><span>🌱</span>
+                                <div><div class="font-bold text-slate-200">เมล็ดพันธุ์ ${spec.name}</div>
+                                <div class="text-[10px] text-amber-400 font-mono">ราคา: ${spec.seedPrice} 🪙</div></div>
+                            </div>
+                            <button onclick="Game.UI.purchaseItemTransaction('${key}')" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black px-2.5 py-1 rounded-md transition-all text-[11px] cursor-pointer">ซื้อ</button>
+                        `;
+                        buyRoot.appendChild(div);
+                    });
+
+                    // Add dynamic row for buying disease medicine configuration supplies
+                    const medDiv = document.createElement('div');
+                    medDiv.className = "bg-slate-950 border border-slate-850 p-2 rounded-xl flex justify-between items-center text-xs mt-2";
+                    medDiv.innerHTML = `
+                        <div class="flex items-center gap-2"><span>💊</span>
+                            <div><div class="font-bold text-slate-200">ยารักษาโรคพืชสูตรครอบจักรวาล</div>
+                            <div class="text-[10px] text-amber-400 font-mono">ราคา: ${storeTierConfig.medicineCost} 🪙</div></div>
+                        </div>
+                        <button onclick="Game.UI.purchaseMedicineTransaction()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black px-2.5 py-1 rounded-md transition-all text-[11px] cursor-pointer">ซื้อ</button>
+                    `;
+                    buyRoot.appendChild(medDiv);
+
+                    // Populate Harvest Produce Liquidation Sell Arrays
+                    const sellRoot = document.getElementById('shop-sell-list'); sellRoot.innerHTML = '';
+                    let countSellableAssets = 0;
+
+                    Object.keys(FRUIT_SPECS).forEach(key => {
+                        const spec = FRUIT_SPECS[key];
+                        const invKey = `crop_${key}`;
+                        const qtyOwned = Game.State.player.inventory[invKey] || 0;
+
+                        if(qtyOwned > 0) {
+                            countSellableAssets++;
+                            const div = document.createElement('div');
+                            div.className = "bg-slate-950 border border-slate-850 p-2 rounded-xl flex justify-between items-center text-xs";
+                            div.innerHTML = `
+                                <div class="flex items-center gap-2"><span class="text-xl">${spec.icon}</span>
+                                    <div><div class="font-bold text-slate-200">${spec.name} (${qtyOwned} ชิ้น)</div>
+                                    <div class="text-[10px] text-emerald-400 font-mono">ราคารับซื้อ: ${spec.sellPrice} 🪙 / ชิ้น</div></div>
+                                </div>
+                                <button onclick="Game.UI.liquidateHarvestProduceTransaction('${key}')" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-2.5 py-1 rounded-md transition-all text-[11px] cursor-pointer">ขายหมด</button>
+                            `;
+                            sellRoot.appendChild(div);
+                        }
+                    });
+
+                    if(countSellableAssets === 0) {
+                        sellRoot.innerHTML = `<div class="text-slate-500 text-center italic py-6 text-xs">ไม่มีผลผลิตเหลือในกระเป๋าเพื่อส่งออกขาย</div>`;
+                    }
+                }
+                else if (this.currentActiveTabId === 'edu') {
+                    const eduRoot = document.getElementById('edu-cards-root'); eduRoot.innerHTML = '';
+                    
+                    Object.keys(DISEASE_SPECS).forEach(key => {
+                        const dSpec = DISEASE_SPECS[key];
+                        const fSpec = FRUIT_SPECS[key];
+                        
+                        const hasActiveContextMatchedMatch = this.savedInfectionContextRef && this.savedInfectionContextRef.data.cropType === key;
+
+                        const card = document.createElement('div');
+                        card.id = `edu-card-${key}`;
+                        // Add vibrant flashing highlights borders if redirected from a diseased plot plant point trigger
+                        const boundaryAccentStyles = hasActiveContextMatchedMatch ? 'border-red-500 bg-red-950/20 scale-[1.01]' : 'border-slate-800 bg-slate-950/40';
+                        
+                        card.className = `border p-4 rounded-2xl flex flex-col justify-between transition-all text-xs ${boundaryAccentStyles}`;
+                        card.innerHTML = `
+                            <div>
+                                <div class="flex justify-between items-center mb-1.5">
+                                    <span class="font-black text-amber-400 text-sm">${dSpec.name}</span>
+                                    <span class="text-xs bg-slate-900 px-2 py-0.5 rounded text-slate-400 font-medium">พืชเจ้าบ้าน: ${fSpec.name}</span>
+                                </div>
+                                <p class="text-slate-300 font-medium mt-1"><b class="text-red-400">🔍 สาเหตุ:</b> ${dSpec.cause}</p>
+                                <p class="text-slate-300 font-medium mt-1"><b class="text-emerald-400">🛡️ วิธีป้องกัน:</b> ${dSpec.prevention}</p>
+                                <p class="text-slate-300 font-medium mt-1"><b class="text-cyan-400">💊 วิธีรักษา:</b> ${dSpec.treatment}</p>
+                            </div>
+                            
+                            ${hasActiveContextMatchedMatch ? `
+                            <button onclick="Game.UI.applyMedicalCureToSelectedInfection()" class="w-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black py-2 rounded-xl mt-4 transition-all tracking-wide cursor-pointer">
+                                💊 จ่ายยารักษาต้นนี้ (ใช้ยา 1 ขวด)
+                            </button>
+                            ` : ''}
+                        `;
+                        eduRoot.appendChild(card);
+                    });
+                }
+            },
+
+            purchaseItemTransaction(cropKey) {
+                const spec = FRUIT_SPECS[cropKey];
+                if(Game.State.player.coins >= spec.seedPrice) {
+                    Game.State.player.coins -= spec.seedPrice;
+                    const invKey = `seed_${cropKey}`;
+                    Game.State.player.inventory[invKey] = (Game.State.player.inventory[invKey] || 0) + 1;
+                    
+                    this.triggerNotificationToast(`ซื้อสำเร็จ! ได้รับเมล็ดพันธุ์ ${spec.name} 1 ซอง`, "success");
+                    this.renderModalDynamicTabularPaneContents();
+                    Game.Systems.Farming.refreshGlobalDependenciesState();
+                } else {
+                    this.triggerNotificationToast("เงินเหรียญของคุณไม่เพียงพอสำหรับการสั่งซื้อรายการนี้", "error");
+                }
+            },
+
+            purchaseMedicineTransaction() {
+                const cost = SHOP_TIERS[Game.State.player.shopLevel - 1].medicineCost;
+                if(Game.State.player.coins >= cost) {
+                    Game.State.player.coins -= cost;
+                    Game.State.player.inventory['medicine_generic']++;
+                    
+                    this.triggerNotificationToast(`ซื้อสำเร็จ! ได้รับยารักษาโรคพืชทั่วไป 1 ขวด`, "success");
+                    this.renderModalDynamicTabularPaneContents();
+                    Game.Systems.Farming.refreshGlobalDependenciesState();
+                } else {
+                    this.triggerNotificationToast("เงินเหรียญของคุณไม่เพียงพอสำหรับการสั่งซื้อรายการนี้", "error");
+                }
+            },
+
+            liquidateHarvestProduceTransaction(cropKey) {
+                const spec = FRUIT_SPECS[cropKey];
+                const invKey = `crop_${cropKey}`;
+                const qty = Game.State.player.inventory[invKey] || 0;
+
+                if(qty > 0) {
+                    const netPayoutSum = qty * spec.sellPrice;
+                    Game.State.player.inventory[invKey] = 0;
+                    Game.State.player.coins += netPayoutSum;
+                    
+                    GameSound.play('coin');
+                    this.triggerNotificationToast(`ขายเสร็จสิ้น! ส่งออก ${qty}x ${spec.name} สร้างรายได้ +${netPayoutSum} 🪙`, "success");
+                    Game.Systems.Quests.evaluateTriggerTrackingUpdate('earn', 'coins', netPayoutSum);
+                    this.renderModalDynamicTabularPaneContents();
+                    Game.Systems.Farming.refreshGlobalDependenciesState();
+                }
+            },
+
+            upgradeLocalShopTier() {
+                if(Game.State.player.shopLevel >= 4) {
+                    return this.triggerNotificationToast("ร้านค้าอัปเกรดขึ้นจนเต็มขีดจำกัดระดับสูงสุดแล้ว!", "notice");
+                }
+                const nextUpgradeCostValue = 300;
+                if(Game.State.player.coins >= nextUpgradeCostValue) {
+                    Game.State.player.coins -= nextUpgradeCostValue;
+                    Game.State.player.shopLevel++;
+                    
+                    this.triggerNotificationToast(`🎉 อัปเกรดสำเร็จ! ปลดล็อกร้านค้าเป็นระดับ ${Game.State.player.shopLevel} แล้ว 🎉`, "success");
+                    this.renderModalDynamicTabularPaneContents();
+                    Game.Systems.Farming.refreshGlobalDependenciesState();
+                } else {
+                    this.triggerNotificationToast(`เหรียญไม่พอ! ต้องใช้งานทองคำทั้งหมด จำนวน ${nextUpgradeCostValue} 🪙 สำหรับอัปเกรด`, "error");
+                }
+            },
+
+            applyMedicalCureToSelectedInfection() {
+                if(Game.State.player.inventory['medicine_generic'] > 0) {
+                    Game.State.player.inventory['medicine_generic']--;
+                    
+                    const ctx = this.savedInfectionContextRef;
+                    ctx.data.diseaseId = null;
+                    // Fast track acceleration to healthy reset state models updates
+                    Game.Systems.Farming.rebuildPlantModelMeshNodeHierarchy(ctx.data, ctx.mesh);
+                    
+                    this.triggerNotificationToast("บำบัดรักษาเรียบร้อย! ต้นไม้ของคุณฟื้นสภาพกลับมาแข็งแรงพร้อมเติบโตต่อแล้ว", "success");
+                    Game.Systems.Quests.evaluateTriggerTrackingUpdate('cure', 'any', 1);
+                    
+                    this.savedInfectionContextRef = null;
+                    this.toggleModalView(); // Dismiss structural panel views
+                    Game.Systems.Farming.refreshGlobalDependenciesState();
+                } else {
+                    this.triggerNotificationToast("คุณไม่มีขวดยารักษาโรคเหลืออยู่ กรุณาแวะซื้อปัจจัยที่ร้านค้าชุมชนก่อน", "error");
+                }
+            },
+
+            triggerNotificationToast(msg, type = "success") {
+                const toast = document.createElement('div');
+                const borderAccentColor = type === 'success' ? 'border-emerald-500 text-emerald-300' : (type === 'error' ? 'border-red-500 text-red-300' : 'border-amber-500 text-amber-300');
+                
+                toast.className = `fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-slate-950/90 border-l-4 ${borderAccentColor} px-5 py-2.5 rounded-xl shadow-2xl text-xs font-bold tracking-wide z-50 pointer-events-none opacity-0 scale-90 transition-all duration-300`;
+                toast.innerText = msg;
+                document.body.appendChild(toast);
+                
+                const animTimeline = gsap.timeline({ onComplete: () => toast.remove() });
+                animTimeline.to(toast, { opacity: 1, scale: 1, y: -10, duration: 0.2, ease: "power2.out" })
+                            .to(toast, { opacity: 0, y: -25, duration: 0.25, delay: 2.4, ease: "power2.in" });
+            }
+        };
+
+        // --- ATTACH DESKTOP STRATIFIED KEYBOARD INTERACTION INDEX SELECTION LOGICS ---
+        window.addEventListener('keydown', (e) => {
+            const parsedNumKey = parseInt(e.key);
+            if(parsedNumKey >= 1 && parsedNumKey <= 6) {
+                GameSound.play('click');
+                Game.State.player.activeHotbarIdx = parsedNumKey - 1;
+                Game.UI.refreshHUDDisplays();
+            }
+        });
+
+        // --- ENGINE BOOTSTRAP APPS INITIALIZATION LIFECYCLE ROUTINES ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Restore persistent progress tracks matrices states mapping layout configurations
+            Game.Data.load();
+            
+            // Fire global sub-system structural modules elements initialization matrices pipeline
+            Game.Engine.init();
+            Game.Input.init();
+            Game.UI.init();
+
+            // Run central runtime application execution loops tracker stack
+            const centralRenderingHeartbeatFrameLoop = () => {
+                requestAnimationFrame(centralRenderingHeartbeatFrameLoop);
+                
+                // Keep delta intervals scaled to circumvent frame drops glitches anomalies updates lagging spikes
+                const delta = Math.min(0.08, Game.Engine.clock.getDelta());
+                const runningTotalTimeSeconds = Game.Engine.clock.getElapsedTime();
+
+                if(!Game.UI.modalOpen && document.getElementById('screen-character-select').style.display === 'none') {
+                    // Update movement translations computations sets nodes tracking loops
+                    Game.Engine.Controller.updateTickPhysicsFrame(delta);
+                    
+                    // Progress plant metrics growth ticks parameters mapping matrices sets pipelines execution
+                    Game.Systems.Farming.executeContinuousGrowthTickCalculation(delta);
+
+                    // Advance system weather day-night environment times tracking indicators
+                    Game.State.environment.time += delta * 1.5; // Scaled time metrics speeds configuration mapping
+                    if(Game.State.environment.time >= 1440) Game.State.environment.time = 0; // Reset midnight clock wrap
+                }
+
+                // Tick dynamic animated scenario subcomponents props meshes queues transformations functions
+                Game.Engine.sceneDynamicObjects.forEach(obj => { if(obj.tick) obj.tick(runningTotalTimeSeconds); });
+
+                // Render current active frame buffer arrays configurations layouts states updates commands
+                Game.Engine.renderer.render(Game.Engine.scene, Game.Engine.camera);
+            };
+
+            centralRenderingHeartbeatFrameLoop();
+        });
+    </script>
+</body>
+</html>
